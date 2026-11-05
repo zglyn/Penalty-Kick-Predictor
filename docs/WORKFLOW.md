@@ -5,7 +5,7 @@ Both notebooks are generated from `notebook_src/` by `python tools/build_noteboo
 | | `notebooks/Penalty_Kick_HPC.ipynb` | `notebooks/Penalty_Kick_Colab.ipynb` |
 |---|---|---|
 | Purpose | Validated baselines, full source-grouped nested evaluation, selected ablations, durable artifacts | Real-model smoke tests, bounded development experiments, visual audits, inference, report review |
-| Default settings | `RUN_MODE='smoke'`, `EVALUATION_MODE='nested_cv'` | `RUN_MODE='smoke'`, `EVALUATION_MODE='development'` |
+| Default settings | `RUN_MODE='train'`, `EVALUATION_MODE='nested_cv'`, `PREDICT_PRIVATE=True` | same as HPC |
 | Durable storage | `/scratch/$NETID/penalty_kick/outputs` (codelab) | Google Drive `MyDrive/Fall2026/CV/penalty_kick_outputs` |
 | Ephemeral staging | `/scratch/$NETID/penalty_kick/staging` (regenerable) | `/content/penalty_scratch` (lost with the runtime) |
 | Long runs | Batch jobs: `hpc/run_penalty_kick.py` + `hpc/penalty_kick.sbatch` | Interactive only; each run resumes epoch by epoch from Drive |

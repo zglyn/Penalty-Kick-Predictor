@@ -6,7 +6,7 @@
   - Shared cells are byte-identical. `tools/check_consistency.py` detects drift and any Colab code in the HPC notebook.
   - Each notebook still works from its documented uploads: all helper code is embedded.
 - **One Settings cell per platform**, with the same keys on both: `RUN_MODE` (smoke/train/resume/inference/reports), `EXPERIMENT_NAME`, `TRAINED_RUN_DIR`, `DATASET_PATH`, `SCRATCH_ROOT`, `OUTPUT_ROOT`, `BACKBONE`, `TRAINING_POLICY`, `PREDICT_PRIVATE`, `RUN_ABLATIONS`, `FOLD_SELECTION`, `DEV_*`, and utilities.
-  - The defaults are inexpensive: `smoke`, with private prediction and ablations off.
+  - Defaults (user choice): `RUN_MODE='train'` (smoke off), `EVALUATION_MODE='nested_cv'`, `PREDICT_PRIVATE=True`, ablations off. The spec proposed smoke-first defaults; use `RUN_MODE='smoke'` explicitly for a cheap check.
   - Incompatible combinations fail before any import, decoding or download.
 - **Experiment identity is separate from execution.**
   - Platform, paths and Slurm or attempt IDs never change the identity. Model, feature, preprocessing, optimizer and protocol changes do.

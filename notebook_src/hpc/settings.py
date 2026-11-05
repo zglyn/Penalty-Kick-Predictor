@@ -9,7 +9,7 @@ SHARED_CODE_FINGERPRINT = '{{SHARED_CODE_FINGERPRINT}}'   # filled by tools/buil
 NETID = os.environ.get('USER', 'NETID')
 
 # ---- Execution (does not change experiment identity) ---------------------------------------------
-RUN_MODE = 'smoke'            # 'smoke' | 'train' | 'resume' | 'inference' | 'reports'
+RUN_MODE = 'train'            # 'smoke' (QUICK_SMOKE check) | 'train' | 'resume' | 'inference' | 'reports'
 TRAINED_RUN_DIR = None        # run folder or verified bundle (inference/reports). Relative = under OUTPUT_ROOT
 INFERENCE_INPUT = 'private'   # 'private' | 'public_oof' | CSV with clip,path,preferred_foot,gender (no ZIP needed)
 FOLD_SELECTION = None         # None = all folds then aggregate; [k] = only fold k (one job per fold); [] = aggregate
@@ -38,7 +38,7 @@ EVALUATION_MODE = 'nested_cv'     # 'nested_cv' (full) | 'development' (bounded 
 BACKBONE = 'videomae'             # 'videomae' | 'vjepa2_1_vitb_384' | 'vjepa2_vitl_256'
 BACKBONE_REVISION = None
 TRAINING_POLICY = 'finetune'      # 'finetune' | 'frozen_probe' (freezes encoder WEIGHTS; unrelated to releases)
-PREDICT_PRIVATE = False
+PREDICT_PRIVATE = True        # nested_cv only: predict the 900 private clips and write submission.csv
 RUN_ABLATIONS = False
 DEV_SEEDS = [42]
 DEV_EPOCHS = 3

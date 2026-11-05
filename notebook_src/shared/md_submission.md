@@ -6,7 +6,7 @@ rotation, correct strong perspective/parallax, or guarantee robustness across cu
 still depends on person detection; missing or ambiguous training matches are skipped.
 All backbone parameters are fine-tuned; this is not a frozen feature-only implementation.
 Run-all is expensive (inner and outer training, multiple seeds, three video streams). Keep
-checkpoints/caches on Drive. The default smoke mode does not enter full CV or write a submission.
+checkpoints/caches on Drive. Smoke mode does not enter full CV or write a submission; the default (train, nested_cv, PREDICT_PRIVATE=True) does.
 Verify available Drive space; cross-fitted RGB caches can use
 tens of GB. Cache IDs include data and pipeline config to avoid reuse across different runs.
 Outer scores are assessment, not another tuning set. No winning score is guaranteed.

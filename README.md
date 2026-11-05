@@ -16,7 +16,7 @@ The score is `0.70 * kick_accuracy + 0.30 * goalkeeper_accuracy`. Weighted cross
 
 Both notebooks share the same model, preprocessing and evaluation code. They differ only in their environment cells and defaults.
 
-**Modes.** Both notebooks support `RUN_MODE` = `smoke` (default) | `train` | `resume` | `inference` | `reports`.
+**Modes.** Both notebooks support `RUN_MODE` = `smoke` | `train` (default: full nested evaluation with `PREDICT_PRIVATE=True`) | `resume` | `inference` | `reports`.
 
 **Backbones.**
 - VideoMAE is the baseline.

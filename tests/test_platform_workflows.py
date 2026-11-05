@@ -119,7 +119,7 @@ def test_reports_mode_hpc_batch_runner_is_lightweight(tmp_path):
 
 def test_reports_mode_colab_notebook_is_lightweight_without_drive(tmp_path):
     run = write_report_run(tmp_path)
-    replacements = [("RUN_MODE = 'smoke'", "RUN_MODE = 'reports'"),
+    replacements = [("RUN_MODE = 'train'", "RUN_MODE = 'reports'"),
                     ('TRAINED_RUN_DIR = None', f'TRAINED_RUN_DIR = Path({str(run)!r})'),
                     ("SCRATCH_ROOT = Path('/content/penalty_scratch')", f'SCRATCH_ROOT = Path({str(tmp_path / "scratch")!r})')]
     script = REPORT_PROBE + f'REPLACEMENTS = {replacements!r}\n' + textwrap.dedent(f'''

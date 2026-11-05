@@ -308,7 +308,8 @@ def test_identity_ignores_platform_and_paths_but_runs_are_isolated(trained, monk
     changed = config_namespace(trained, monkeypatch, 'hpc', output_root=tmp_path / 'scratch_netid',
                                EVALUATION_MODE='nested_cv', TRAINING_POLICY='frozen_probe')
     assert changed['EXPERIMENT_ID'] != hpc['EXPERIMENT_ID'] and changed['CFG']['optimizer']['policy'] == 'frozen_probe'
-    dev = config_namespace(trained, monkeypatch, 'colab', output_root=tmp_path / 'drive')   # Colab default: development
+    dev = config_namespace(trained, monkeypatch, 'colab', output_root=tmp_path / 'drive', EVALUATION_MODE='development',
+                           PREDICT_PRIVATE=False)
     assert dev['CFG']['evaluation_mode'] == 'development' and dev['VIDEO_SEEDS'] == [42] and dev['VIDEO_EPOCHS'] == 3
 
 

@@ -72,16 +72,16 @@ def settings_values(platform):
     return values
 
 
-def test_settings_share_keys_and_inexpensive_defaults():
+def test_settings_share_keys_and_requested_defaults():
     colab, hpc = settings_values('colab'), settings_values('hpc')
     hpc_only = {'NETID', 'ALLOW_OUTSIDE_SLURM', 'WRITE_BATCH_FILES', 'FREEZE_RELEASE', 'NOTEBOOK_PATH'}
     assert set(colab) == set(hpc) - hpc_only
     for v in (colab, hpc):
-        assert v['RUN_MODE'] == 'smoke' and v['PREDICT_PRIVATE'] is False and v['RUN_ABLATIONS'] is False
+        assert v['RUN_MODE'] == 'train' and v['PREDICT_PRIVATE'] is True and v['RUN_ABLATIONS'] is False   # smoke off
         assert v['TRAINING_POLICY'] == 'finetune' and v['BACKBONE'] == 'videomae'
     assert colab['DATASET_PATH'] == "Path('/content/drive/MyDrive/Fall2026/CV/penalty-kick-prediction-cs-gy-6643.zip')"
     assert colab['OUTPUT_ROOT'] == "Path('/content/drive/MyDrive/Fall2026/CV/penalty_kick_outputs')"
-    assert colab['EVALUATION_MODE'] == 'development' and hpc['EVALUATION_MODE'] == 'nested_cv'
+    assert colab['EVALUATION_MODE'] == hpc['EVALUATION_MODE'] == 'nested_cv'   # PREDICT_PRIVATE needs nested_cv
     assert '/scratch/' in hpc['OUTPUT_ROOT'] and '/content' not in str(hpc.values())
     for platform in ('colab', 'hpc'):
         assert not re.search(r'^\s*import (numpy|torch|pandas)', cell_source('settings', platform), re.M)

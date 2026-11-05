@@ -4,4 +4,4 @@ Two direction heads (kick 70%, goalkeeper 30%), source-cross-fitted player roles
 
 **Use Colab for:** real-backbone smoke tests, the bounded development preset, crop/tracking audits, inference from saved models or HPC bundles, and report review. Long, validated baselines and full nested evaluations run on HPC. Colab Pro+ is not guaranteed uninterrupted compute: `/content` is ephemeral; checkpoints go to Drive, and training resumes at the last completed epoch.
 
-Modes (`RUN_MODE`): **smoke** (default, cheap), **train**, **resume**, **inference** (no fitting; no ZIP for custom videos), **reports** (pandas only; stops early). Recipes are at the end; the full workflow is in `docs/WORKFLOW.md`.
+Modes (`RUN_MODE`): **smoke** (cheap check), **train** (default: full nested_cv with a private submission), **resume**, **inference** (no fitting; no ZIP for custom videos), **reports** (pandas only; stops early). Recipes are at the end; the full workflow is in `docs/WORKFLOW.md`.

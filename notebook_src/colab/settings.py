@@ -6,7 +6,7 @@ PLATFORM = 'colab'
 SHARED_CODE_FINGERPRINT = '{{SHARED_CODE_FINGERPRINT}}'   # filled by tools/build_notebooks.py
 
 # ---- Execution (does not change experiment identity) ---------------------------------------------
-RUN_MODE = 'smoke'            # 'smoke' | 'train' | 'resume' | 'inference' | 'reports'
+RUN_MODE = 'train'            # 'smoke' (QUICK_SMOKE check) | 'train' | 'resume' | 'inference' | 'reports'
 TRAINED_RUN_DIR = None        # run folder or verified bundle (inference/reports). Relative = under OUTPUT_ROOT
 INFERENCE_INPUT = 'private'   # 'private' | 'public_oof' | CSV with clip,path,preferred_foot,gender (no ZIP needed)
 FOLD_SELECTION = None         # None = all folds then aggregate; [k] = only fold k; [] = aggregate only
@@ -26,12 +26,12 @@ OUTPUT_ROOT = Path('/content/drive/MyDrive/Fall2026/CV/penalty_kick_outputs')   
 SCRATCH_ROOT = Path('/content/penalty_scratch')   # extracted videos; lost when the runtime is replaced
 
 # ---- Experiment (identity-defining: changing any of these creates a new experiment) ---------------
-EXPERIMENT_NAME = 'dev_videomae_v1'   # human-readable label; the hash of the configuration is the identity
-EVALUATION_MODE = 'development'   # 'development' (bounded preset) | 'nested_cv' (full) | 'holdout'
+EXPERIMENT_NAME = 'baseline_videomae_v1'   # human-readable label; the hash of the configuration is the identity
+EVALUATION_MODE = 'nested_cv'     # 'nested_cv' (full) | 'development' (bounded preset) | 'holdout'
 BACKBONE = 'videomae'             # 'videomae' | 'vjepa2_1_vitb_384' | 'vjepa2_vitl_256'
 BACKBONE_REVISION = None
 TRAINING_POLICY = 'finetune'      # 'finetune' | 'frozen_probe' (freezes encoder WEIGHTS; unrelated to releases)
-PREDICT_PRIVATE = False
+PREDICT_PRIVATE = True        # nested_cv only: predict the 900 private clips and write submission.csv
 RUN_ABLATIONS = False
 # Bounded development preset: one seed, few epochs, fixed source-disjoint subset chosen without labels.
 DEV_SEEDS = [42]
