@@ -48,7 +48,7 @@ HPC and Colab never share a run folder, even for equivalent configurations.
 2. **Freeze the baseline.** Set `FREEZE_RELEASE=True` and `NOTEBOOK_PATH=...`, then run the Settings cell through the release cell, which stops after freezing. This creates the read-only `OUTPUT_ROOT/releases/<EXPERIMENT_NAME>__<hash>/`, containing the notebook, runner, sbatch script, job JSON, checksums and environment.
 3. **Start the immutable baseline on HPC** from the release folder: `sbatch penalty_kick.sbatch <job>.json`, or with `--array=0-4 ... --fold-from-array`. Bug fixes or experiment changes make a new release; the running one is never edited.
 4. **Copy the release notebook settings to Colab** under a different `EXPERIMENT_NAME`. Any computational change produces a new identity and run folder automatically.
-5. **Screen ideas in Colab** with `EVALUATION_MODE='development'`, using the same saved development split. Change one thing at a time, select on inner validation only, and inspect crop/tracking audits and loss curves.
+5. **Screen ideas in Colab** with `EVALUATION_MODE='development'`, using the same saved development split. In Colab this trains every backbone in `DEVELOPMENT_BACKBONES` and writes a best-validation-loss comparison plus a development submission per backbone (`OUTPUT_ROOT/comparisons/`). Change one thing at a time, select on inner validation only, and inspect crop/tracking audits and loss curves.
 6. **Promote a promising change** into a new release and a full HPC experiment.
 
 **Sharing.** Dataset hashes, class mappings and split assignments (`OUTPUT_ROOT/diagnostic_splits/`, `OUTPUT_ROOT/splits/`) are immutable and keyed by identity. Never point one platform at the other's live run folder. To move a finished run, export a bundle (below).

@@ -142,9 +142,21 @@ def development_split():
     return split_id,training,validation
 
 
-def run_development():
+def best_validation_losses(folder, seeds):
+    """Best (lowest) eval-mode inner-validation weighted cross-entropy per seed, from the saved loss histories."""
+    rows = []
+    for seed in seeds:
+        history = pd.read_csv(Path(folder)/f'loss_history_seed{seed}.csv')
+        best = history.loc[history.validation_loss.idxmin()]
+        rows.append(dict(seed=int(seed), best_validation_loss=float(best.validation_loss), best_epoch=int(best.epoch),
+                         final_validation_loss=float(history.validation_loss.iloc[-1]), epochs=int(len(history))))
+    return rows
+
+
+def run_development(predict_private=False):
     """Bounded preset: one seed, few epochs, fixed subset. DEVELOPMENT ONLY: the validation subset also selects
-    the checkpoint, so its score is a selection-biased screening metric, never complete OOF performance."""
+    the checkpoint, so its score is a selection-biased screening metric, never complete OOF performance.
+    predict_private writes a DEVELOPMENT submission from these subset-trained models (not a full-data model)."""
     with RunWriterLock(RUN,'run'):
         split_id,training,validation=development_split()
         split=train[['clip','source_id']].copy(); split['split']='unused'
@@ -154,26 +166,124 @@ def run_development():
             epochs=VIDEO_EPOCHS,training_clips=len(training),validation_clips=len(validation),
             training_sources=int(train.source_id.iloc[training].nunique()),validation_sources=int(train.source_id.iloc[validation].nunique()),
             evaluation_scope='DEVELOPMENT ONLY: bounded subset, inner-validation screening; not complete OOF performance',
-            experiment_identity=EXPERIMENT_ID,attempt=ATTEMPT_ID),indent=2))
-        folder,mapping,_=build_stage(training,validation,'development',selection=validation)
+            backbone=BACKBONE_SPEC['name'],experiment_identity=EXPERIMENT_ID,attempt=ATTEMPT_ID),indent=2))
+        private_idx=np.arange(len(train),len(rows)) if predict_private else np.array([],dtype=int)
+        # The fitted stage identity excludes the prediction list: adding private clips never retrains.
+        folder,mapping,_=build_stage(training,np.r_[validation,private_idx],'development',selection=validation)
         averaged=[np.zeros((len(validation),len(c))) for c in CLASSES]
+        private=[np.zeros((len(private_idx),len(c))) for c in CLASSES]
+        if torch.cuda.is_available(): torch.cuda.reset_peak_memory_stats()
+        started=time.perf_counter()
         for seed in VIDEO_SEEDS:
-            model,scaler=fit_video(training,mapping,folder,seed,validation_indices=validation)
+            model,scaler=fit_video(training,mapping,folder,seed,validation_indices=validation)   # best-validation weights
             for j,p in enumerate(predict_video(model,scaler,validation,mapping)): averaged[j]+=p/len(VIDEO_SEEDS)
+            if predict_private:
+                for j,p in enumerate(predict_video(model,scaler,private_idx,mapping)): private[j]+=p/len(VIDEO_SEEDS)
             del model; gc.collect(); torch.cuda.empty_cache()
+        seconds=time.perf_counter()-started
+        peak=torch.cuda.max_memory_allocated()/1024**3 if torch.cuda.is_available() else None
         metrics=pd.DataFrame([dict(split='development_validation',clips=len(validation),
             evaluation_scope='development_only_selection_biased',**probability_metrics(averaged,validation))])
         metrics.to_csv(RUN/'development_metrics.csv',index=False)
         np.savez_compressed(RUN/'development_predictions.npz',validation_indices=validation,
-                            **{f'validation_{j}':p for j,p in enumerate(averaged)})
+                            **{f'validation_{j}':p for j,p in enumerate(averaged)},
+                            **{f'private_{j}':p for j,p in enumerate(private)})
+        submission_path=None
+        if predict_private:
+            validate_probability_arrays(private,len(test),CLASSES)
+            pred=pd.DataFrame({'clip':test['clip'].to_numpy()})
+            for j,(target,classes) in enumerate(zip(TARGETS,CLASSES)):
+                pred[target]=np.asarray(classes)[private[j].argmax(1)]
+            submission=template[['clip']].merge(pred,on='clip',how='left',validate='one_to_one')
+            assert len(submission)==len(test) and not submission.isna().any().any()
+            submission_path=RUN/'submission_development.csv'; submission.to_csv(submission_path,index=False)
         display(metrics)
         print('DEVELOPMENT RESULT ONLY (subset, one seed, checkpoint chosen on this validation subset). '
               'Compare only with other development runs on split', split_id)
-        return metrics
+        return dict(metrics=metrics,split_id=split_id,stage=folder,best=best_validation_losses(folder,VIDEO_SEEDS),
+                    submission=submission_path,training_seconds=seconds,peak_gpu_gib=peak,run=RUN)
+
+
+def plot_development_curves(results, path):
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(figsize=(9, 5))
+    for name, result in results.items():
+        for seed in VIDEO_SEEDS:
+            h = pd.read_csv(Path(result['stage'])/f'loss_history_seed{seed}.csv')
+            ax.plot(h.epoch, h.validation_loss, marker='o', label=f'{name} (seed {seed})')
+    ax.set(xlabel='Epoch', ylabel='Inner-validation weighted cross-entropy (lower is better)',
+           title='Development backbone comparison (same saved split and seeds)')
+    ax.legend(); ax.grid(alpha=.25); fig.tight_layout(); fig.savefig(path, dpi=150)
+    if not IS_BATCH: display(fig)
+    plt.close(fig)
+
+
+def run_development_sweep(backbones, predict_private=False):
+    """Train every listed backbone on the SAME saved development split and seeds (one run folder each), write a
+    development submission per backbone, and compare their best inner-validation losses. A failing backbone is
+    reported as failed; it is never replaced by another backbone."""
+    results, failures = {}, {}
+    for name in backbones:
+        print(f'\n==================== Development run: {name} ====================')
+        try:
+            configure_training_run(name, BACKBONE_REVISION if name == BACKBONE else None, TRAINING_POLICY,
+                                   label=f'{EXPERIMENT_NAME}__{name}')
+            if BACKBONE_SPEC['frames'] != RAW_CFG['frames']:
+                raise ValueError(f'{name} needs {BACKBONE_SPEC["frames"]} frames; the detector cache holds {RAW_CFG["frames"]}.')
+            results[name] = run_development(predict_private)
+        except Exception as error:
+            import traceback; traceback.print_exc()
+            failures[name] = f'{type(error).__name__}: {error}'
+            print(f'Backbone {name} FAILED; continuing with the remaining backbones.')
+        finally:
+            gc.collect(); torch.cuda.empty_cache()
+    if not results:
+        raise RuntimeError(f'Every development backbone failed: {failures}')
+    split_ids = {r['split_id'] for r in results.values()}
+    assert len(split_ids) == 1, 'Backbones must share one saved development split'
+    out = OUTPUT/'comparisons'/f'{EXPERIMENT_NAME}__{split_ids.pop()}__{ATTEMPT_ID}'
+    out.mkdir(parents=True, exist_ok=True)
+    table = []
+    for name in backbones:
+        if name in failures:
+            table.append(dict(backbone=name, status='failed', error=failures[name])); continue
+        r = results[name]; m = r['metrics'].iloc[0]; best = r['best']
+        submission = None
+        if r['submission'] is not None:
+            submission = out/f'submission_{name}.csv'; shutil.copy2(r['submission'], submission)
+        table.append(dict(backbone=name, status='complete',
+            best_validation_loss=float(np.mean([b['best_validation_loss'] for b in best])),
+            best_epoch=';'.join(str(b['best_epoch']) for b in best),
+            final_validation_loss=float(np.mean([b['final_validation_loss'] for b in best])),
+            ensemble_validation_loss=float(m['loss']), weighted_accuracy=float(m['weighted_accuracy']),
+            kick_accuracy=float(m['kick_direction_accuracy']), keeper_accuracy=float(m['goalkeeper_direction_accuracy']),
+            frames=int(json.loads((r['run']/'development_manifest.json').read_text())['config']['frames']),
+            resolution=int(json.loads((r['run']/'development_manifest.json').read_text())['config']['size']),
+            training_policy=TRAINING_POLICY, training_seconds=round(r['training_seconds'], 1),
+            peak_gpu_gib=None if r['peak_gpu_gib'] is None else round(r['peak_gpu_gib'], 2),
+            submission=None if submission is None else str(submission), run_dir=str(r['run'])))
+    comparison = pd.DataFrame(table)
+    done = comparison[comparison.status == 'complete'].sort_values('best_validation_loss')
+    comparison['rank_by_best_validation_loss'] = comparison.backbone.map(
+        {b: i + 1 for i, b in enumerate(done.backbone)})
+    comparison.to_csv(out/'backbone_comparison.csv', index=False)
+    plot_development_curves(results, out/'backbone_validation_curves.png')
+    atomic_write_text(out/'comparison.json', json.dumps(dict(split_id=list({r['split_id'] for r in results.values()})[0],
+        seeds=VIDEO_SEEDS, epochs=VIDEO_EPOCHS, training_policy=TRAINING_POLICY, failures=failures,
+        rule='Lower best inner-validation weighted cross-entropy is better. Same saved split, seeds and epochs; NOT '
+             'compute-matched (model sizes and resolutions differ). Development-only screening, selection-biased.'),
+        indent=2, default=str))
+    display(comparison)
+    best_name = done.backbone.iloc[0]
+    print(f'Lowest best inner-validation loss: {best_name} ({done.best_validation_loss.iloc[0]:.4f}). '
+          f'Comparison and submissions: {out}')
+    print('These are development submissions (subset-trained, few epochs). For a final submission, run the chosen '
+          'backbone with EVALUATION_MODE="nested_cv".')
+    return dict(comparison=comparison, results=results, failures=failures, output=out)
 
 
 # ------------------------------ Execution routing (RUN_MODE from Settings) ------------------------------
-inference_result=None; diagnostic_result=None
+inference_result=None; diagnostic_result=None; development_result=None
 if RUN_MODE == 'reports':
     pass                                           # reports mode stops before this cell; definitions only
 elif RUN_MODE == 'inference':
@@ -183,7 +293,7 @@ elif QUICK_SMOKE:
 elif EVALUATION_MODE=='holdout':
     with RunWriterLock(RUN,'run'): run_holdout()
 elif EVALUATION_MODE=='development':
-    development_result=run_development()
+    development_result=run_development_sweep(list(DEVELOPMENT_BACKBONES or [BACKBONE]),predict_private=PREDICT_PRIVATE)
 else:
     diagnostic_result=run_nested_diagnostics('production',private_inference=PREDICT_PRIVATE,fold_selection=FOLD_SELECTION)
     if diagnostic_result is None:

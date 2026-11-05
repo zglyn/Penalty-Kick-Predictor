@@ -34,6 +34,9 @@ TRAINING_POLICY = 'finetune'      # 'finetune' | 'frozen_probe' (freezes encoder
 PREDICT_PRIVATE = True        # nested_cv only: predict the 900 private clips and write submission.csv
 RUN_ABLATIONS = False
 # Bounded development preset: one seed, few epochs, fixed source-disjoint subset chosen without labels.
+# Development mode trains EVERY backbone listed here (same saved split and seeds), writes one development
+# submission per backbone (PREDICT_PRIVATE=True), and ends with a best-validation-loss comparison. None = BACKBONE only.
+DEVELOPMENT_BACKBONES = ['videomae', 'vjepa2_1_vitb_384', 'vjepa2_vitl_256']
 DEV_SEEDS = [42]
 DEV_EPOCHS = 3
 DEV_TRAIN_SOURCE_FRACTION = 0.5    # of public sources, for training

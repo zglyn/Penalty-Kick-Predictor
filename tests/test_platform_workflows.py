@@ -250,9 +250,13 @@ def test_development_preset_is_labeled_and_never_exported_as_full_evaluation(tmp
     ns.update(EVALUATION_MODE='development', VIDEO_SEEDS=[42], VIDEO_EPOCHS=2)
     mode = ns['RUN_MODE']; ns['RUN_MODE'] = 'reports'; h.run_cell('smoke_holdout_dispatch', ns); ns['RUN_MODE'] = mode
     with h.cpu_training_patches():
-        metrics = ns['run_development']()
-    run = ns['RUN']
+        result = ns['run_development'](predict_private=True)
+    run = ns['RUN']; metrics = result['metrics']
     assert metrics.evaluation_scope.iloc[0] == 'development_only_selection_biased'
+    submission = pd.read_csv(result['submission'])
+    assert list(submission.columns) == ['clip', 'kick_direction', 'goalkeeper_direction'] and len(submission) == len(ns['test'])
+    history = pd.read_csv(result['stage'] / 'loss_history_seed42.csv')
+    assert result['best'][0]['best_validation_loss'] == pytest.approx(history.validation_loss.min())
     manifest = json.loads((run / 'development_manifest.json').read_text())
     assert manifest['evaluation_scope'].startswith('DEVELOPMENT ONLY')
     split_files = list((ns['OUTPUT'] / 'splits').glob('dev_*.json'))
@@ -316,3 +320,46 @@ def test_hpc_and_colab_wrappers_produce_identical_inference(trained):
     assert out.returncode == 0, out.stderr[-3000:]
     diff = json.loads(out.stdout.strip().splitlines()[-1])
     assert max(diff.values()) <= 1e-6
+
+
+def test_development_sweep_trains_every_backbone_writes_submissions_and_compares(tmp_path, monkeypatch):
+    """Real configuration + sweep code. Tiny VideoMAE and V-JEPA 2 stand in for the hub checkpoints; V-JEPA 2.1 is
+    made to fail on purpose to check that a failure is reported (never silently replaced) and the sweep continues."""
+    import types, transformers
+    monkeypatch.setitem(sys.modules, 'ultralytics', types.SimpleNamespace(YOLO=lambda *a, **k: None))
+    monkeypatch.setattr(transformers.VideoMAEImageProcessor, 'from_pretrained',
+                        classmethod(lambda cls, name, **k: types.SimpleNamespace(image_mean=[.5] * 3, image_std=[.25] * 3)))
+    ns = h.base_namespace(tmp_path)
+    monkeypatch.setattr(transformers, 'VJEPA2Model', ns['TinyVJEPA2'])
+    tiny_videomae, real_spec = ns['VideoMAEForVideoClassification'], ns['backbone_spec']
+    def tiny_spec(name, revision=None):
+        if name == 'vjepa2_1_vitb_384': raise RuntimeError('simulated V-JEPA 2.1 checkpoint failure')
+        spec = real_spec(name, revision); spec.update(frames=2, size=4, feature_dim=8, checkpoint=f'tiny-{name}')
+        return spec
+    clicks = tmp_path / 'clicks.csv'
+    pd.DataFrame(dict(clip=['pub000.mp4'], kicker_click_time_seconds=[1.], keeper_click_time_seconds=[1.])).to_csv(clicks, index=False)
+    ns.update(backbone_spec=tiny_spec, RUN_MODE='train', BACKBONE='videomae', BACKBONE_REVISION=None,
+              TRAINING_POLICY='finetune', EVALUATION_MODE='development', PREDICT_PRIVATE=True, QUICK_SMOKE=False,
+              DEVELOPMENT_BACKBONES=['videomae', 'vjepa2_1_vitb_384', 'vjepa2_vitl_256'], DEV_SEEDS=[42], DEV_EPOCHS=2,
+              TRAINED_RUN_DIR=None, NEEDS_DATASET=True, find_one=lambda names: clicks, IS_BATCH=True)
+    h.run_cell('experiment_configuration', ns)
+    ns['VideoMAEForVideoClassification'] = tiny_videomae          # the configuration cell re-imported the real class
+    ns['RUN_MODE'] = 'reports'; h.run_cell('smoke_holdout_dispatch', ns); ns['RUN_MODE'] = 'train'
+    with h.cpu_training_patches():
+        result = ns['run_development_sweep'](ns['DEVELOPMENT_BACKBONES'], predict_private=True)
+    table = result['comparison'].set_index('backbone')
+    assert list(table.index) == ['videomae', 'vjepa2_1_vitb_384', 'vjepa2_vitl_256']
+    assert table.loc['vjepa2_1_vitb_384', 'status'] == 'failed' and 'simulated' in table.loc['vjepa2_1_vitb_384', 'error']
+    done = table[table.status == 'complete']
+    assert len(done) == 2 and np.isfinite(done.best_validation_loss).all()
+    assert sorted(done.rank_by_best_validation_loss) == [1, 2]
+    runs = {Path(r) for r in done.run_dir}
+    assert len(runs) == 2 and all('__videomae__' in r.name or '__vjepa2_vitl_256__' in r.name for r in runs)
+    for name, row in done.iterrows():
+        sub = pd.read_csv(row.submission)
+        assert len(sub) == len(ns['test']) and Path(row.submission).name == f'submission_{name}.csv'
+        best = min(pd.read_csv(p).validation_loss.min() for p in Path(row.run_dir).glob('stages/development_*/loss_history_seed42.csv'))
+        assert row.best_validation_loss == pytest.approx(best)
+    split_ids = {json.loads((Path(r) / 'development_manifest.json').read_text())['split_id'] for r in done.run_dir}
+    assert len(split_ids) == 1                                                    # identical saved split
+    assert (result['output'] / 'backbone_comparison.csv').exists() and (result['output'] / 'backbone_validation_curves.png').exists()

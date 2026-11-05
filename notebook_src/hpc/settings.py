@@ -40,6 +40,7 @@ BACKBONE_REVISION = None
 TRAINING_POLICY = 'finetune'      # 'finetune' | 'frozen_probe' (freezes encoder WEIGHTS; unrelated to releases)
 PREDICT_PRIVATE = True        # nested_cv only: predict the 900 private clips and write submission.csv
 RUN_ABLATIONS = False
+DEVELOPMENT_BACKBONES = None     # list = development sweep over backbones (see the Colab notebook); None = BACKBONE only
 DEV_SEEDS = [42]
 DEV_EPOCHS = 3
 DEV_TRAIN_SOURCE_FRACTION = 0.5

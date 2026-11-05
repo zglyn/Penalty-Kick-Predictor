@@ -76,15 +76,6 @@ if RUN_MODE == 'inference':
         print(f'NOTE: Settings say BACKBONE={BACKBONE!r}, but the saved run uses {BACKBONE_SPEC["name"]!r}. '
               'The saved run wins; inference never converts a run to another backbone.')
     print('Loaded saved preprocessing/model settings from', TRAINED_RUN_DIR)
-VIDEO_ID = BACKBONE_SPEC['checkpoint']
-if RUN_MODE != 'inference':
-    N_FRAMES = BACKBONE_SPEC['frames']; SIZE = BACKBONE_SPEC['size']
-BACKBONE_IDENTITY = backbone_identity(BACKBONE_SPEC, TRAINING_POLICY)
-# The original VideoMAE fine-tuning configuration keeps its exact CFG, so old runs still resume.
-LEGACY_DEFAULT_BACKBONE = BACKBONE_IDENTITY == LEGACY_IDENTITY
-OPTIMIZER_SETTINGS = dict(name='AdamW', weight_decay=.05, policy=TRAINING_POLICY,
-                          learning_rates=dict(finetune=dict(backbone=1e-5, heads=1e-4), frozen_probe=dict(heads=1e-3))[TRAINING_POLICY],
-                          gradient_clip=1.0, amp='float16')
 if EVALUATION_MODE == 'development' and RUN_MODE != 'inference':
     VIDEO_SEEDS = list(DEV_SEEDS); VIDEO_EPOCHS = int(DEV_EPOCHS)
 FULL_TRAIN_SETTINGS=dict(epochs=VIDEO_EPOCHS,seeds=list(VIDEO_SEEDS),accumulation=GRAD_ACCUM)
@@ -96,33 +87,55 @@ if QUICK_SMOKE:
 if RUN_MODE == 'inference' and DEVICE != 'cuda':
     print('WARNING: no GPU. Inference will work but uncached detection/video encoding will be slow.')
 
-CFG = dict(dataset=DATA_ID,video=VIDEO_ID,pose=POSE_WEIGHTS,frames=N_FRAMES,
-           detector_conf=DETECTOR_CONF,detector_imgsz=DETECTOR_IMGSZ,
-           window=WINDOW,size=SIZE,epochs=VIDEO_EPOCHS,seeds=VIDEO_SEEDS,
-           outer_folds=OUTER_FOLDS,role_folds=ROLE_FOLDS,role_min_prob=ROLE_MIN_PROB,
-           version='nested-components-v6',gradient_accumulation=GRAD_ACCUM,evaluation_mode=EVALUATION_MODE,
-           validation_fraction=VALIDATION_FRACTION,test_fraction=TEST_FRACTION,split_seed=SEED,targets=TARGETS,metric_weights=WEIGHTS.tolist(),
-           tracking=dict(max_gap=TRACK_MAX_GAP_SECONDS,max_jump=TRACK_MAX_JUMP_HEIGHTS,speed=TRACK_SPEED_HEIGHTS_PER_SECOND),
-           smoke=QUICK_SMOKE,smoke_max_batches=SMOKE_MAX_BATCHES)
-if not LEGACY_DEFAULT_BACKBONE:
-    # New backbones/policies get distinct runs, crop caches (size/frames) and checkpoints.
-    CFG.update(backbone=BACKBONE_IDENTITY, training_policy=TRAINING_POLICY, optimizer=OPTIMIZER_SETTINGS)
-if EVALUATION_MODE == 'development':
-    CFG.update(development=dict(train_source_fraction=DEV_TRAIN_SOURCE_FRACTION,
-        validation_source_fraction=DEV_VALIDATION_SOURCE_FRACTION, seeds=list(DEV_SEEDS), epochs=int(DEV_EPOCHS),
-        scope='development inner-validation subset; not complete OOF performance'))
-if RUN_MODE == 'inference':
-    CFG = _saved_cfg; RUN = TRAINED_RUN_DIR
-    EXPERIMENT_ID = stable_hash(CFG)
-    if DATA_ID is not None and _saved_cfg.get('dataset') != DATA_ID:
-        print('NOTE: dataset ZIP differs from the training ZIP; training-time crop/detector caches will not be reused.')
-else:
+
+def image_normalization(spec):
+    """VideoMAE reads its checkpoint processor (small config, not weights); V-JEPA uses official ImageNet values."""
+    if spec['family'] == 'videomae':
+        processor = VideoMAEImageProcessor.from_pretrained(spec['checkpoint'])
+        return np.array(processor.image_mean, dtype=np.float32), np.array(processor.image_std, dtype=np.float32)
+    return np.array(IMAGENET_MEAN, dtype=np.float32), np.array(IMAGENET_STD, dtype=np.float32)
+
+
+def optimizer_settings(policy):
+    return dict(name='AdamW', weight_decay=.05, policy=policy,
+                learning_rates=dict(finetune=dict(backbone=1e-5, heads=1e-4), frozen_probe=dict(heads=1e-3))[policy],
+                gradient_clip=1.0, amp='float16')
+
+
+def configure_training_run(backbone, revision=None, policy=None, label=None, record_attempt=True):
+    """Set every backbone-dependent global (spec, frames, crop size, normalization, CFG, identity, RUN, STAGES)
+    for one training experiment. Used for the configured backbone and for each backbone of a development sweep,
+    so a sweep member is exactly the experiment a single run with that BACKBONE would be."""
+    global BACKBONE_SPEC, VIDEO_ID, N_FRAMES, SIZE, BACKBONE_IDENTITY, LEGACY_DEFAULT_BACKBONE, OPTIMIZER_SETTINGS
+    global CFG, EXPERIMENT_ID, RUN, STAGES, IMAGE_MEAN, IMAGE_STD
+    policy = TRAINING_POLICY if policy is None else policy
+    BACKBONE_SPEC = backbone_spec(backbone, revision)
+    VIDEO_ID = BACKBONE_SPEC['checkpoint']; N_FRAMES = BACKBONE_SPEC['frames']; SIZE = BACKBONE_SPEC['size']
+    BACKBONE_IDENTITY = backbone_identity(BACKBONE_SPEC, policy)
+    # The original VideoMAE fine-tuning configuration keeps its exact CFG, so old runs still resume.
+    LEGACY_DEFAULT_BACKBONE = BACKBONE_IDENTITY == LEGACY_IDENTITY
+    OPTIMIZER_SETTINGS = optimizer_settings(policy)
+    CFG = dict(dataset=DATA_ID,video=VIDEO_ID,pose=POSE_WEIGHTS,frames=N_FRAMES,
+               detector_conf=DETECTOR_CONF,detector_imgsz=DETECTOR_IMGSZ,
+               window=WINDOW,size=SIZE,epochs=VIDEO_EPOCHS,seeds=VIDEO_SEEDS,
+               outer_folds=OUTER_FOLDS,role_folds=ROLE_FOLDS,role_min_prob=ROLE_MIN_PROB,
+               version='nested-components-v6',gradient_accumulation=GRAD_ACCUM,evaluation_mode=EVALUATION_MODE,
+               validation_fraction=VALIDATION_FRACTION,test_fraction=TEST_FRACTION,split_seed=SEED,targets=TARGETS,metric_weights=WEIGHTS.tolist(),
+               tracking=dict(max_gap=TRACK_MAX_GAP_SECONDS,max_jump=TRACK_MAX_JUMP_HEIGHTS,speed=TRACK_SPEED_HEIGHTS_PER_SECOND),
+               smoke=QUICK_SMOKE,smoke_max_batches=SMOKE_MAX_BATCHES)
+    if not LEGACY_DEFAULT_BACKBONE:
+        # New backbones/policies get distinct runs, crop caches (size/frames) and checkpoints.
+        CFG.update(backbone=BACKBONE_IDENTITY, training_policy=policy, optimizer=OPTIMIZER_SETTINGS)
+    if EVALUATION_MODE == 'development':
+        CFG.update(development=dict(train_source_fraction=DEV_TRAIN_SOURCE_FRACTION,
+            validation_source_fraction=DEV_VALIDATION_SOURCE_FRACTION, seeds=list(DEV_SEEDS), epochs=int(DEV_EPOCHS),
+            scope='development inner-validation subset; not complete OOF performance'))
     # Identity = computation only. Platform/paths/attempts choose WHERE it is written, never WHAT it is.
     EXPERIMENT_ID = hashlib.sha256(json.dumps(CFG,sort_keys=True).encode()).hexdigest()[:16]
-    RUN = OUTPUT/'runs'/PLATFORM/f'{EXPERIMENT_NAME}__learned_{EXPERIMENT_ID}'
-    _legacy = OUTPUT/f'learned_{EXPERIMENT_ID}'          # layout before platform-separated runs (Colab)
-    if PLATFORM == 'colab' and _legacy.is_dir() and not RUN.exists():
-        RUN = _legacy; print('Using the existing pre-update run folder', RUN)
+    RUN = OUTPUT/'runs'/PLATFORM/f'{label or EXPERIMENT_NAME}__learned_{EXPERIMENT_ID}'
+    legacy = OUTPUT/f'learned_{EXPERIMENT_ID}'          # layout before platform-separated runs (Colab)
+    if PLATFORM == 'colab' and legacy.is_dir() and not RUN.exists():
+        RUN = legacy; print('Using the existing pre-update run folder', RUN)
     if RUN_MODE == 'resume':
         if TRAINED_RUN_DIR is not None and TRAINED_RUN_DIR.resolve() != RUN.resolve():
             saved = TRAINED_RUN_DIR/'experiment_manifest.json'
@@ -136,8 +149,30 @@ else:
         if not (RUN/'stages').is_dir():
             raise ValueError(f'RUN_MODE="resume" but {RUN} has no saved stages. Use RUN_MODE="train" to start it.')
     RUN.mkdir(parents=True, exist_ok=True)
-    write_attempt_record(RUN, dict(execution=EXECUTION_SETTINGS, experiment=EXPERIMENT_SETTINGS,
-                                   experiment_identity=EXPERIMENT_ID, config=CFG), ENVIRONMENT_INFO)
+    STAGES = RUN/'stages'; STAGES.mkdir(exist_ok=True)
+    IMAGE_MEAN, IMAGE_STD = image_normalization(BACKBONE_SPEC)
+    if record_attempt:
+        write_attempt_record(RUN, dict(execution=EXECUTION_SETTINGS, experiment=dict(EXPERIMENT_SETTINGS, BACKBONE=backbone),
+                                       experiment_identity=EXPERIMENT_ID, config=CFG), ENVIRONMENT_INFO)
+    return RUN
+
+
+if RUN_MODE == 'inference':
+    VIDEO_ID = BACKBONE_SPEC['checkpoint']
+    BACKBONE_IDENTITY = backbone_identity(BACKBONE_SPEC, TRAINING_POLICY)
+    LEGACY_DEFAULT_BACKBONE = BACKBONE_IDENTITY == LEGACY_IDENTITY
+    OPTIMIZER_SETTINGS = optimizer_settings(TRAINING_POLICY)
+    CFG = _saved_cfg; RUN = TRAINED_RUN_DIR; STAGES = RUN/'stages'
+    EXPERIMENT_ID = stable_hash(CFG)
+    if SAVED_INFERENCE_MANIFEST is not None:
+        IMAGE_MEAN=np.array(SAVED_INFERENCE_MANIFEST['preprocessing']['image_mean'],dtype=np.float32)
+        IMAGE_STD=np.array(SAVED_INFERENCE_MANIFEST['preprocessing']['image_std'],dtype=np.float32)
+    else:
+        IMAGE_MEAN, IMAGE_STD = image_normalization(BACKBONE_SPEC)
+    if DATA_ID is not None and _saved_cfg.get('dataset') != DATA_ID:
+        print('NOTE: dataset ZIP differs from the training ZIP; training-time crop/detector caches will not be reused.')
+else:
+    configure_training_run(BACKBONE, BACKBONE_REVISION, TRAINING_POLICY, label=EXPERIMENT_NAME)
 print('RUN:', RUN, '| experiment identity:', EXPERIMENT_ID, '| attempt:', ATTEMPT_ID)
 rows=pd.concat([train,test],ignore_index=True)
 if NEEDS_DATASET:
@@ -158,8 +193,6 @@ RAW=OUTPUT/('detector_cache_'+hashlib.sha256(json.dumps(RAW_CFG,sort_keys=True).
 if NEEDS_DATASET:
     RAW.mkdir(parents=True, exist_ok=True)
     atomic_write_text(RAW/'manifest.json',json.dumps(RAW_CFG,indent=2))
-STAGES=RUN/'stages'
-if RUN_MODE != 'inference': STAGES.mkdir(exist_ok=True)
 
 # Choose annotated examples by source only, without selecting on target outcomes.
 # Four training sources x four clips; two held-out sources x two clips.
@@ -206,15 +239,5 @@ if EVALUATION_MODE=='holdout' and RUN_MODE in {'train', 'resume'}:
     print('Fractions apply to source groups, so actual clip percentages may differ.')
     print('The labeled test split is separate from the 900 unlabeled competition clips.')
 
-# Normalization constants: VideoMAE reads its checkpoint processor; V-JEPA uses the official ImageNet values.
-if RUN_MODE == 'inference' and SAVED_INFERENCE_MANIFEST is not None:
-    IMAGE_MEAN=np.array(SAVED_INFERENCE_MANIFEST['preprocessing']['image_mean'],dtype=np.float32)
-    IMAGE_STD=np.array(SAVED_INFERENCE_MANIFEST['preprocessing']['image_std'],dtype=np.float32)
-elif BACKBONE_SPEC['family'] == 'videomae':
-    processor=VideoMAEImageProcessor.from_pretrained(VIDEO_ID)  # small preprocessing config, not weights
-    IMAGE_MEAN=np.array(processor.image_mean,dtype=np.float32)
-    IMAGE_STD=np.array(processor.image_std,dtype=np.float32)
-else:
-    IMAGE_MEAN=np.array(IMAGENET_MEAN,dtype=np.float32); IMAGE_STD=np.array(IMAGENET_STD,dtype=np.float32)
 print(f'Backbone {BACKBONE_SPEC["name"]}: {N_FRAMES} frames, {SIZE}px crops, policy={TRAINING_POLICY}')
 # The pose detector loads lazily (get_pose_model) only when an uncached clip must be decoded.

@@ -7,8 +7,15 @@ if RUN_MODE == 'inference':
         print('Inference output (no submission for this input):', inference_result['output_dir'])
 elif QUICK_SMOKE:
     print("Smoke mode: no competition submission is generated.")
-elif EVALUATION_MODE in {'holdout','development'}:
-    print(f'{EVALUATION_MODE} run complete. Submissions come only from finished nested_cv runs (or inference mode).')
+elif EVALUATION_MODE=='development':
+    if PREDICT_PRIVATE and development_result is not None:
+        print('Development submissions (one per backbone; subset-trained, labeled development):')
+        display(development_result['comparison'][['backbone','status','best_validation_loss','submission']])
+        for path in development_result['comparison'].submission.dropna(): offer_download(path)
+    else:
+        print('Development run complete; set PREDICT_PRIVATE=True for per-backbone development submissions.')
+elif EVALUATION_MODE=='holdout':
+    print('Holdout run complete. Submissions come from nested_cv or development runs (or inference mode).')
 elif diagnostic_result is None:
     print('Nested folds are still incomplete; no submission until every fold is aggregated.')
 elif not PREDICT_PRIVATE:

@@ -21,7 +21,8 @@
   - Pooling happens once every fold is complete with the same identity. Mixed configurations are refused.
 - **Bounded development preset** (`EVALUATION_MODE='development'`).
   - One seed, few epochs, and a fixed, label-free, source-disjoint subset whose split file is saved.
-  - Results are labeled development-only. They can never be exported as a submission or treated as full evaluation.
+  - Results are labeled development-only and are never treated as full evaluation. Submissions from this mode (opt-in via `PREDICT_PRIVATE=True`) are labeled development submissions trained on the subset.
+- **Development backbone sweep.** In development mode, `DEVELOPMENT_BACKBONES` (Colab default: all three backbones; HPC default: `None`) trains each backbone on the same saved split and seeds. With `PREDICT_PRIVATE=True` it writes one labeled development submission per backbone, and it finishes with a best-inner-validation-loss comparison (`backbone_comparison.csv` and a curves plot). Failures are reported per backbone, never substituted.
 - **Frozen releases** (`create_release`, `verify_release`) and **relocatable bundles** (`export_bundle`, `verify_bundle`). Interrupted transfers are rejected.
 - **Durability guards.**
   - Training refuses ephemeral `OUTPUT_ROOT` (Colab `/content`, HPC `/tmp` or `$TMPDIR`).

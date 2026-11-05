@@ -315,7 +315,7 @@ def test_identity_ignores_platform_and_paths_but_runs_are_isolated(trained, monk
 
 @pytest.mark.parametrize('platform', ['colab', 'hpc'])
 def test_incompatible_settings_fail_before_anything_expensive(trained, monkeypatch, platform):
-    for bad in [dict(RUN_MODE='inference'), dict(PREDICT_PRIVATE=True, EVALUATION_MODE='development'),
+    for bad in [dict(RUN_MODE='inference'), dict(PREDICT_PRIVATE=True, EVALUATION_MODE='holdout'), dict(EVALUATION_MODE='development', DEVELOPMENT_BACKBONES=['videomae', 'vjepa3']),
                 dict(FOLD_SELECTION=[0], EVALUATION_MODE='holdout'), dict(RUN_ABLATIONS=True, EVALUATION_MODE='development'),
                 dict(ALLOW_EPHEMERAL_OUTPUT=False, OUTPUT_ROOT='/tmp/x' if platform == 'hpc' else '/content/out'),
                 dict(BACKBONE='vjepa3')]:
