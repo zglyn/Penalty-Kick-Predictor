@@ -1,0 +1,16 @@
+# CPU-only authoring tests (tests/). Not the notebook runtime environment.
+torch
+torchvision
+transformers==5.3.0
+catboost
+scikit-learn
+pandas
+numpy
+opencv-python-headless
+matplotlib
+ipython
+nbformat
+pytest
+timm
+einops
+packaging

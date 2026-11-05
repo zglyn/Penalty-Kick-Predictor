@@ -1,0 +1,2 @@
+{"RUN_MODE": "reports", "TRAINED_RUN_DIR": "runs/hpc/baseline_videomae_v1__learned_REPLACE_WITH_ID",
+ "EXPORT_BUNDLE_TO": "/scratch/REPLACE_NETID/penalty_kick/outputs/bundles"}

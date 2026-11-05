@@ -1,0 +1,1 @@
+{"RUN_MODE": "inference", "TRAINED_RUN_DIR": "runs/hpc/baseline_videomae_v1__learned_REPLACE_WITH_ID", "INFERENCE_INPUT": "private"}

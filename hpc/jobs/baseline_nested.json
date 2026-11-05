@@ -1,0 +1,2 @@
+{"RUN_MODE": "train", "EXPERIMENT_NAME": "baseline_videomae_v1", "EVALUATION_MODE": "nested_cv", "BACKBONE": "videomae",
+ "TRAINING_POLICY": "finetune", "PREDICT_PRIVATE": true, "RUN_ABLATIONS": false}

@@ -1,0 +1,1 @@
+{"RUN_MODE": "smoke", "EXPERIMENT_NAME": "baseline_videomae_v1", "BACKBONE": "videomae", "TRAINING_POLICY": "finetune"}

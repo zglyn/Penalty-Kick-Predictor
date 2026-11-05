@@ -1,0 +1,2 @@
+### Inference-only bindings
+Used when `RUN_MODE='inference'`. They load saved selectors, scalers, trees, priors and weights from `TRAINED_RUN_DIR`; only label-free decoding/detection/cropping is new work.

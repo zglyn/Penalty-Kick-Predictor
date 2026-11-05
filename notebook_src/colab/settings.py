@@ -1,0 +1,40 @@
+# CELL: settings
+# ============================== SETTINGS: the only cell you normally edit ==============================
+# Plain Python (no NumPy/torch), safe right after the restart. Same experiment keys as the HPC notebook.
+from pathlib import Path
+PLATFORM = 'colab'
+SHARED_CODE_FINGERPRINT = '{{SHARED_CODE_FINGERPRINT}}'   # filled by tools/build_notebooks.py
+
+# ---- Execution (does not change experiment identity) ---------------------------------------------
+RUN_MODE = 'smoke'            # 'smoke' | 'train' | 'resume' | 'inference' | 'reports'
+TRAINED_RUN_DIR = None        # run folder or verified bundle (inference/reports). Relative = under OUTPUT_ROOT
+INFERENCE_INPUT = 'private'   # 'private' | 'public_oof' | CSV with clip,path,preferred_foot,gender (no ZIP needed)
+FOLD_SELECTION = None         # None = all folds then aggregate; [k] = only fold k; [] = aggregate only
+MIGRATE_LEGACY_RUN = False    # inference on a run trained before inference manifests existed
+VERIFY_CHECKSUMS = True
+RUN_TIMING_BENCHMARK = True   # smoke mode only
+GENERATE_HEATMAPS = False
+GENERATE_TRACKING_AUDITS = True
+ALLOW_EPHEMERAL_OUTPUT = False  # True only for throwaway tests: /content disappears with the runtime
+
+# ---- Utilities (do not change experiment identity) ---------------------------------------------
+EXPORT_BUNDLE_TO = None   # e.g. OUTPUT_ROOT/'bundles': checksummed, relocatable copy of a finished run
+
+# ---- Environment: Colab paths. /content is EPHEMERAL staging; Drive is durable ----------------------
+DATASET_PATH = Path('/content/drive/MyDrive/Fall2026/CV/penalty-kick-prediction-cs-gy-6643.zip')
+OUTPUT_ROOT = Path('/content/drive/MyDrive/Fall2026/CV/penalty_kick_outputs')   # checkpoints, reports, bundles
+SCRATCH_ROOT = Path('/content/penalty_scratch')   # extracted videos; lost when the runtime is replaced
+
+# ---- Experiment (identity-defining: changing any of these creates a new experiment) ---------------
+EXPERIMENT_NAME = 'dev_videomae_v1'   # human-readable label; the hash of the configuration is the identity
+EVALUATION_MODE = 'development'   # 'development' (bounded preset) | 'nested_cv' (full) | 'holdout'
+BACKBONE = 'videomae'             # 'videomae' | 'vjepa2_1_vitb_384' | 'vjepa2_vitl_256'
+BACKBONE_REVISION = None
+TRAINING_POLICY = 'finetune'      # 'finetune' | 'frozen_probe' (freezes encoder WEIGHTS; unrelated to releases)
+PREDICT_PRIVATE = False
+RUN_ABLATIONS = False
+# Bounded development preset: one seed, few epochs, fixed source-disjoint subset chosen without labels.
+DEV_SEEDS = [42]
+DEV_EPOCHS = 3
+DEV_TRAIN_SOURCE_FRACTION = 0.5    # of public sources, for training
+DEV_VALIDATION_SOURCE_FRACTION = 0.2  # disjoint sources for inner validation (development-only metric)

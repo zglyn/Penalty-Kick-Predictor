@@ -1,0 +1,7 @@
+# Penalty direction prediction: Colab (development, smoke tests, audits, inference, reports)
+
+Two direction heads (kick 70%, goalkeeper 30%), source-cross-fitted player roles, camera compensation, VideoMAE / V-JEPA 2.1 / V-JEPA 2 video backbones, numeric specialist and ensembling. Goal outcome is not a target. Upload this notebook and, for training or competition inference, the dataset ZIP; all helper code is embedded and shared byte-for-byte with `Penalty_Kick_HPC.ipynb` (checked by `tools/check_consistency.py`).
+
+**Use Colab for:** real-backbone smoke tests, the bounded development preset, crop/tracking audits, inference from saved models or HPC bundles, and report review. Long, validated baselines and full nested evaluations run on HPC. Colab Pro+ is not guaranteed uninterrupted compute: `/content` is ephemeral; checkpoints go to Drive, and training resumes at the last completed epoch.
+
+Modes (`RUN_MODE`): **smoke** (default, cheap), **train**, **resume**, **inference** (no fitting; no ZIP for custom videos), **reports** (pandas only; stops early). Recipes are at the end; the full workflow is in `docs/WORKFLOW.md`.

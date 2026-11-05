@@ -1,0 +1,7 @@
+# Penalty direction prediction: HPC (validated baselines, full nested evaluation, ablations)
+
+Same model, preprocessing and evaluation code as `Penalty_Kick_Colab.ipynb` (shared cells are byte-identical; `tools/check_consistency.py`). This notebook never imports Colab, never mounts Drive, never installs packages and never uses Colab paths.
+
+**Cluster facts used (from the course codelab):** NYU HPC Cloud Bursting through Open OnDemand (https://ood-burst.hpc.nyu.edu/, NYU VPN off campus); Slurm account `cs_gy_6643-2026fa` (300 GPU hours); GPU partitions `g2-standard-12/24/48` (1/2/4 L4) and `c12m85-a100-1`/`c24m170-a100-2` (1/2 A100 40GB); spot instances can be preempted, so jobs use `--requeue` and checkpoint to `/scratch/$NETID`; `--comment="gpu_mps=yes"` lets jobs share a GPU; software via Singularity + conda overlays (`/share/apps/overlay-fs-ext3`, `/share/apps/images`). **Not in the codelab (left as explicit placeholders):** wall-time limits, whether `--gres` is needed besides the partition, CPU/memory requests, overlay/image file names, scratch purge policy.
+
+**Interactive:** start an OOD Jupyter session on a GPU partition (training refuses to run outside a Slurm allocation). **Long runs:** use the batch runner (`run_penalty_kick.py` executes this notebook's code cells with JSON settings) and `penalty_kick.sbatch`; freeze a release first. Modes: **smoke** (default), **train**, **resume**, **inference**, **reports**. See `docs/WORKFLOW.md` and `hpc/ENVIRONMENT.md`.
