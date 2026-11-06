@@ -32,7 +32,7 @@ if RUN_MODE != 'reports':
                 pass
         if not _ok: _bad.append(f'{_text} (found: {", ".join(_found) or "missing"})')
     if _bad:
-        raise RuntimeError('The Singularity/conda environment does not match the pinned requirements (this notebook '
+        raise RuntimeError('The Apptainer/conda environment does not match the pinned requirements (this notebook '
                            'and its jobs never install packages):\n- ' + '\n- '.join(_bad) + '\nSee hpc/ENVIRONMENT.md.')
     if not ENVIRONMENT_INFO['container']:
-        print('NOTE: not inside a Singularity container; the codelab recommends Singularity + conda overlays.')
+        print('NOTE: not inside an Apptainer/Singularity container; NYU recommends conda inside Apptainer overlays.')
