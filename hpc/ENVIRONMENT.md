@@ -32,6 +32,13 @@ The codelab links to `services.rt.nyu.edu/docs/hpc/containers/singularity_with_c
 | Wall times (Torch) | `show_slurm_qos`: interactive 6 h; GPU 48 h or 7 days. Burst limits are not documented; check with `sinfo -o "%P %l"` on the burst cluster. | NYU docs |
 | SSH (Torch) | `ssh <NetID>@login.torch.hpc.nyu.edu` from PowerShell, with Microsoft device-login MFA; SSH keys are not supported. Then `ssh burst` for the burst login node. Your course says to use OOD; try SSH only if the TAs allow it. | NYU docs |
 
+## No terminal? Use `hpc/HPC_Setup_No_Terminal.ipynb`
+
+If the Open OnDemand shell closes immediately, do every step below from a Jupyter session instead.
+1. In the **Files** app, create the folders and upload the ZIP, the HPC notebook, the runner, the sbatch script and `jobs/`.
+2. Run `hpc/HPC_Setup_No_Terminal.ipynb` in an OOD Jupyter session on a CPU partition. Its cells list images and limits, create the overlay, install the packages, fill in the sbatch placeholders, submit the smoke and full jobs, and show their status and logs.
+3. If `sbatch` is missing inside Jupyter, submit with **Jobs → Job Composer**. With no argument, the script reads `job.json` from its folder.
+
 ## One-time setup
 
 All commands run in an Open OnDemand terminal on the burst cluster (or `ssh burst`).

@@ -2,6 +2,7 @@
 # Penalty-kick batch job for NYU HPC Cloud Bursting (Slurm). Submit from an Open OnDemand terminal:
 #   mkdir -p /scratch/$USER/penalty_kick/logs
 #   sbatch penalty_kick.sbatch job.json                    # one job (smoke, pilot, holdout, or all folds)
+#   (no terminal: Open OnDemand Jobs > Job Composer > From Specified Path = this folder; uses ./job.json)
 #   sbatch --array=0-4 penalty_kick.sbatch job.json --fold-from-array   # one outer fold per task
 # Status: squeue -u $USER     Cancel: scancel <jobid>     Logs: /scratch/$USER/penalty_kick/logs/
 #
@@ -21,8 +22,11 @@
 ##SBATCH --cpus-per-task=8                  # UNVERIFIED (g2-standard-12 has 12 vCPUs per its name)
 ##SBATCH --mem=40G                          # UNVERIFIED
 set -euo pipefail
-SETTINGS=${1:?usage: sbatch penalty_kick.sbatch job.json [--fold-from-array]}
-shift
+# Settings file: first argument, or job.json in the submit folder (for Open OnDemand Job Composer, which
+# submits without arguments: copy one of jobs/*.json to job.json next to this script).
+SETTINGS=${1:-${SLURM_SUBMIT_DIR:-.}/job.json}
+[ $# -gt 0 ] && shift
+[ -f "$SETTINGS" ] || { echo "Settings file not found: $SETTINGS"; exit 1; }
 JOB_DIR=${PENALTY_JOB_DIR:-$SLURM_SUBMIT_DIR}   # folder holding the notebook + runner (or a frozen release): submit from it
 # From NYU's "Apptainer with Conda" guide (the codelab's singularity_with_conda link moved). Your files:
 OVERLAY=${PENALTY_OVERLAY:-/scratch/$USER/penalty_kick/env/overlay-penalty.ext3}
