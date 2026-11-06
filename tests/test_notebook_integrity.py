@@ -82,6 +82,8 @@ def test_settings_share_keys_and_requested_defaults():
     assert colab['DATASET_PATH'] == "Path('/content/drive/MyDrive/Fall2026/CV/penalty-kick-prediction-cs-gy-6643.zip')"
     assert colab['OUTPUT_ROOT'] == "Path('/content/drive/MyDrive/Fall2026/CV/penalty_kick_outputs')"
     assert colab['EVALUATION_MODE'] == hpc['EVALUATION_MODE'] == 'nested_cv'   # PREDICT_PRIVATE needs nested_cv
+    assert colab['EXPERIMENT_NAME'] == 'final_videomae_v1' and colab['BACKBONE'] == 'videomae'   # full VideoMAE preset
+    assert NOTEBOOKS['colab'].name == 'Penalty_Kick_Colab_VideoMAE_Full.ipynb' and NOTEBOOKS['colab'].exists()
     assert '/scratch/' in hpc['OUTPUT_ROOT'] and '/content' not in str(hpc.values())
     for platform in ('colab', 'hpc'):
         assert not re.search(r'^\s*import (numpy|torch|pandas)', cell_source('settings', platform), re.M)

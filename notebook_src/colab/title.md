@@ -1,4 +1,6 @@
-# Penalty direction prediction: Colab (development, smoke tests, audits, inference, reports)
+# Penalty direction prediction: Colab, full VideoMAE nested_cv run
+
+**Preconfigured:** `RUN_MODE='train'`, `EVALUATION_MODE='nested_cv'`, `BACKBONE='videomae'`, `TRAINING_POLICY='finetune'`, `PREDICT_PRIVATE=True`, `EXPERIMENT_NAME='final_videomae_v1'`. Run the install cell, restart, then **Run after** from Settings; rerun with the same settings after a disconnect. The submission is written to `OUTPUT_ROOT/runs/colab/final_videomae_v1__learned_<id>/submission.csv` once all 5 folds finish.
 
 Two direction heads (kick 70%, goalkeeper 30%), source-cross-fitted player roles, camera compensation, VideoMAE / V-JEPA 2.1 / V-JEPA 2 video backbones, numeric specialist and ensembling. Goal outcome is not a target. Upload this notebook and, for training or competition inference, the dataset ZIP; all helper code is embedded and shared byte-for-byte with `Penalty_Kick_HPC.ipynb` (checked by `tools/check_consistency.py`).
 

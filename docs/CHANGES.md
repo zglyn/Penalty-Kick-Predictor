@@ -2,7 +2,7 @@
 
 ## New
 
-- **Two generated notebooks from one source.** `notebooks/Penalty_Kick_HPC.ipynb` and `notebooks/Penalty_Kick_Colab.ipynb` are both built from `notebook_src/` by `tools/build_notebooks.py`.
+- **Two generated notebooks from one source.** `notebooks/Penalty_Kick_HPC.ipynb` and `notebooks/Penalty_Kick_Colab_VideoMAE_Full.ipynb` are both built from `notebook_src/` by `tools/build_notebooks.py`.
   - Shared cells are byte-identical. `tools/check_consistency.py` detects drift and any Colab code in the HPC notebook.
   - Each notebook still works from its documented uploads: all helper code is embedded.
 - **One Settings cell per platform**, with the same keys on both: `RUN_MODE` (smoke/train/resume/inference/reports), `EXPERIMENT_NAME`, `TRAINED_RUN_DIR`, `DATASET_PATH`, `SCRATCH_ROOT`, `OUTPUT_ROOT`, `BACKBONE`, `TRAINING_POLICY`, `PREDICT_PRIVATE`, `RUN_ABLATIONS`, `FOLD_SELECTION`, `DEV_*`, and utilities.

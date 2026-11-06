@@ -1,6 +1,6 @@
 # Penalty direction prediction: HPC (validated baselines, full nested evaluation, ablations)
 
-Same model, preprocessing and evaluation code as `Penalty_Kick_Colab.ipynb` (shared cells are byte-identical; `tools/check_consistency.py`). This notebook never imports Colab, never mounts Drive, never installs packages and never uses Colab paths.
+Same model, preprocessing and evaluation code as `Penalty_Kick_Colab_VideoMAE_Full.ipynb` (shared cells are byte-identical; `tools/check_consistency.py`). This notebook never imports Colab, never mounts Drive, never installs packages and never uses Colab paths.
 
 **Cluster facts used (from the course codelab):** NYU HPC Cloud Bursting through Open OnDemand (https://ood-burst.hpc.nyu.edu/, NYU VPN off campus); Slurm account `cs_gy_6643-2026fa` (300 GPU hours); GPU partitions `g2-standard-12/24/48` (1/2/4 L4) and `c12m85-a100-1`/`c24m170-a100-2` (1/2 A100 40GB); spot instances can be preempted, so jobs use `--requeue` and checkpoint to `/scratch/$NETID`; `--comment="gpu_mps=yes"` lets jobs share a GPU; software via Singularity + conda overlays (`/share/apps/overlay-fs-ext3`, `/share/apps/images`). **Not in the codelab (left as explicit placeholders):** wall-time limits, whether `--gres` is needed besides the partition, CPU/memory requests, overlay/image file names, scratch purge policy.
 

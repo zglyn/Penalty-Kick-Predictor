@@ -12,7 +12,7 @@ The score is `0.70 * kick_accuracy + 0.30 * goalkeeper_accuracy`. Weighted cross
 | Notebook | Use it for |
 |---|---|
 | [`notebooks/Penalty_Kick_HPC.ipynb`](notebooks/Penalty_Kick_HPC.ipynb) | Validated baselines, full source-grouped nested evaluation and selected ablations on NYU HPC Cloud Bursting (Slurm). Batch runs go through `hpc/run_penalty_kick.py` and `hpc/penalty_kick.sbatch`. |
-| [`notebooks/Penalty_Kick_Colab.ipynb`](notebooks/Penalty_Kick_Colab.ipynb) | Colab Pro+ smoke tests with real backbones, bounded development experiments, crop/tracking audits, inference from saved runs or HPC bundles, and report review. |
+| [`notebooks/Penalty_Kick_Colab_VideoMAE_Full.ipynb`](notebooks/Penalty_Kick_Colab_VideoMAE_Full.ipynb) | Colab Pro+ smoke tests with real backbones, bounded development experiments, crop/tracking audits, inference from saved runs or HPC bundles, and report review. |
 
 Both notebooks share the same model, preprocessing and evaluation code. They differ only in their environment cells and defaults.
 

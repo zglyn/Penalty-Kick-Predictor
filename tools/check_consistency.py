@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Drift check between the two notebooks' common code (usable without the authoring sources).
 
-    python tools/check_consistency.py notebooks/Penalty_Kick_Colab.ipynb notebooks/Penalty_Kick_HPC.ipynb
+    python tools/check_consistency.py notebooks/Penalty_Kick_Colab_VideoMAE_Full.ipynb notebooks/Penalty_Kick_HPC.ipynb
 
 Checks: every shared cell exists in both notebooks with identical text, in the same relative order; both
 notebooks embed the same SHARED_CODE_FINGERPRINT; the HPC notebook has no Colab import, Drive mount or Colab path.
@@ -38,7 +38,7 @@ def check(colab_path, hpc_path):
 
 if __name__ == '__main__':
     root = Path(__file__).resolve().parents[1]
-    args = sys.argv[1:] or [root / 'notebooks' / 'Penalty_Kick_Colab.ipynb', root / 'notebooks' / 'Penalty_Kick_HPC.ipynb']
+    args = sys.argv[1:] or [root / 'notebooks' / 'Penalty_Kick_Colab_VideoMAE_Full.ipynb', root / 'notebooks' / 'Penalty_Kick_HPC.ipynb']
     issues = check(*args)
     print('\n'.join(issues) if issues else 'Consistency check: PASS (shared cells identical, fingerprints match, HPC is Colab-free)')
     sys.exit(1 if issues else 0)

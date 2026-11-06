@@ -2,7 +2,7 @@
 
 Both notebooks are generated from `notebook_src/` by `python tools/build_notebooks.py`. Shared cells are byte-identical, and `python tools/check_consistency.py` checks this. For identical experiment settings, both notebooks use the same model, preprocessing and evaluation code, and the same experiment identity. Only the defaults and the environment cells differ.
 
-| | `notebooks/Penalty_Kick_HPC.ipynb` | `notebooks/Penalty_Kick_Colab.ipynb` |
+| | `notebooks/Penalty_Kick_HPC.ipynb` | `notebooks/Penalty_Kick_Colab_VideoMAE_Full.ipynb` |
 |---|---|---|
 | Purpose | Validated baselines, full source-grouped nested evaluation, selected ablations, durable artifacts | Real-model smoke tests, bounded development experiments, visual audits, inference, report review |
 | Default settings | `RUN_MODE='train'`, `EVALUATION_MODE='nested_cv'`, `PREDICT_PRIVATE=True` | same as HPC |

@@ -26,12 +26,12 @@ OUTPUT_ROOT = Path('/content/drive/MyDrive/Fall2026/CV/penalty_kick_outputs')   
 SCRATCH_ROOT = Path('/content/penalty_scratch')   # extracted videos; lost when the runtime is replaced
 
 # ---- Experiment (identity-defining: changing any of these creates a new experiment) ---------------
-EXPERIMENT_NAME = 'baseline_videomae_v1'   # human-readable label; the hash of the configuration is the identity
+EXPERIMENT_NAME = 'final_videomae_v1'      # full nested_cv VideoMAE run; the hash of the configuration is the identity
 EVALUATION_MODE = 'nested_cv'     # 'nested_cv' (full) | 'development' (bounded preset) | 'holdout'
 BACKBONE = 'videomae'             # 'videomae' | 'vjepa2_1_vitb_384' | 'vjepa2_vitl_256'
 BACKBONE_REVISION = None
 TRAINING_POLICY = 'finetune'      # 'finetune' | 'frozen_probe' (freezes encoder WEIGHTS; unrelated to releases)
-PREDICT_PRIVATE = True        # nested_cv only: predict the 900 private clips and write submission.csv
+PREDICT_PRIVATE = True        # predict the 900 private clips and write submission.csv
 RUN_ABLATIONS = False
 # Bounded development preset: one seed, few epochs, fixed source-disjoint subset chosen without labels.
 # Development mode trains EVERY backbone listed here (same saved split and seeds), writes one development

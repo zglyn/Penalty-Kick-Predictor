@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 REPO = Path(__file__).resolve().parents[1]
-NOTEBOOKS = dict(colab=REPO / 'notebooks' / 'Penalty_Kick_Colab.ipynb', hpc=REPO / 'notebooks' / 'Penalty_Kick_HPC.ipynb')
+NOTEBOOKS = dict(colab=REPO / 'notebooks' / 'Penalty_Kick_Colab_VideoMAE_Full.ipynb', hpc=REPO / 'notebooks' / 'Penalty_Kick_HPC.ipynb')
 NOTEBOOK = Path(os.environ.get('PENALTY_NOTEBOOK', NOTEBOOKS['colab']))
 WRAPPER = os.environ.get('PENALTY_WRAPPER', 'colab')   # which notebook's cells the harness executes
 TARGETS = ['kick_direction', 'goalkeeper_direction']

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Generate notebooks/Penalty_Kick_Colab.ipynb and notebooks/Penalty_Kick_HPC.ipynb from notebook_src/.
+"""Generate notebooks/Penalty_Kick_Colab_VideoMAE_Full.ipynb and notebooks/Penalty_Kick_HPC.ipynb from notebook_src/.
 
 notebook_src/shared/ is the single maintained source of computational code; notebook_src/colab and
 notebook_src/hpc hold only platform cells (settings defaults, environment, install/batch helpers, text).
@@ -31,7 +31,7 @@ LAYOUT = {
     'hpc': ['hpc/title.md', 'hpc/settings.md', 'hpc/settings.py', 'hpc/platform_helpers.py', *COMMON,
             'hpc/batch_files_and_release.py', *CORE, 'hpc/recipes.md'],
 }
-OUTPUT = {'colab': ROOT / 'notebooks' / 'Penalty_Kick_Colab.ipynb', 'hpc': ROOT / 'notebooks' / 'Penalty_Kick_HPC.ipynb'}
+OUTPUT = {'colab': ROOT / 'notebooks' / 'Penalty_Kick_Colab_VideoMAE_Full.ipynb', 'hpc': ROOT / 'notebooks' / 'Penalty_Kick_HPC.ipynb'}
 COPIES = {SRC / 'hpc' / 'run_penalty_kick.py': ROOT / 'hpc' / 'run_penalty_kick.py',
           SRC / 'hpc' / 'penalty_kick.sbatch': ROOT / 'hpc' / 'penalty_kick.sbatch'}
 METADATA = {
