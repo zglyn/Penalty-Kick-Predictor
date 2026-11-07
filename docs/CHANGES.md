@@ -29,6 +29,12 @@
   - HPC training refuses to run outside a Slurm allocation (login node).
   - A GPU must be visible before any model loads.
 
+- **Diagnostic improvements without retraining (`RUN_MODE='refine'`; `docs/REFINEMENT.md`).** Reuses a finished run's weights to add a class-weighted pose/motion tree, reselect each task's ensemble on inner predictions and fit a center-class offset. Writes a separate `<run>__refine_<id>/` with a submission, a comparison against the baseline and Priority-0 audits.
+  - Summaries now lead with measured class health (`class_health.csv`, zero-prediction alerts), a role-failure crosstab and a training-history report.
+  - Labels are encoded and decoded through one audited helper.
+  - Training records per-epoch class counts and per-class validation recall.
+  - Retraining-heavy spec items are deferred.
+
 ## Fixed issues from the prior review
 
 1. **Prediction caches ignored metadata.** The prediction key now includes the metadata vector, the fitted-artifact ID and the feature signature. Crop caches stay geometry-only.

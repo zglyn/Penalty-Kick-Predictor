@@ -214,7 +214,8 @@ def load_inference_manifest(run_dir, verify_checksums=True):
         if p.stat().st_size != info['bytes']: problems.append(f'size changed: {p}'); continue
         if verify_checksums and sha256_file(p) != info['sha256']: problems.append(f'checksum changed: {p}')
     for m in manifest['members']:
-        referenced = [m['role_selector'], m['numeric_scaler']] + [s['weights'] for s in m['seeds']] + ([m['trees']] if m['trees'] else [])
+        referenced = ([m['role_selector'], m['numeric_scaler']] + [s['weights'] for s in m['seeds']] + ([m['trees']] if m['trees'] else [])
+                      + list(m.get('extra_trees', {}).values()))
         for rel in referenced:
             if rel not in manifest['files']: problems.append(f'unlisted artifact: {run / rel}')
         if not m['seeds']: problems.append(f'{m["member_id"]}: no seed weights')
@@ -223,6 +224,12 @@ def load_inference_manifest(run_dir, verify_checksums=True):
             problems.append(f'{m["member_id"]}: ensemble weights do not match components')
         if 'class_prior' in names and m['class_prior'] is None: problems.append(f'{m["member_id"]}: class prior missing')
         if 'pose_motion_tree' in names and not m['trees']: problems.append(f'{m["member_id"]}: trees missing')
+        for name in names:
+            if name.startswith('pose_motion_tree_') and name not in m.get('extra_trees', {}):
+                problems.append(f'{m["member_id"]}: {name} has no saved trees')
+        offsets = m.get('class_offsets')
+        if offsets is not None and (len(offsets) != 2 or any(len(o) != len(c) for o, c in zip(offsets, manifest['classes']))):
+            problems.append(f'{m["member_id"]}: class_offsets do not match the class order')
     if problems: raise InferenceArtifactError('Inference artifacts are incomplete or modified:\n' + '\n'.join(problems))
     return manifest
 
@@ -384,9 +391,12 @@ def run_saved_inference(run_dir, clips, *, hooks, routing='ensemble', verify_che
             tree_probs = None
             if member['trees']:
                 tree_probs = tree_probabilities(hooks['load_joblib'](run / member['trees']), raw, classes)
+            extra_probs = {name: tree_probabilities(hooks['load_joblib'](run / rel), raw, classes)
+                           for name, rel in member.get('extra_trees', {}).items()}
             for k, i in enumerate(pending):
                 arrays = {f'seed{s}_task{j}': p[j][k] for s, p in seed_probs.items() for j in range(2)}
                 if tree_probs is not None: arrays.update({f'tree_task{j}': tree_probs[j][k] for j in range(2)})
+                for name, probs in extra_probs.items(): arrays.update({f'extra_{name}_task{j}': probs[j][k] for j in range(2)})
                 tmp = member_dir / f'.{keys[i]}.{os.getpid()}.tmp.npz'
                 np.savez(tmp, **arrays, clip=np.array(names[i]), content=np.array(content[names[i]]),
                          metadata=np.asarray(metadata[i]))
@@ -406,7 +416,11 @@ def run_saved_inference(run_dir, clips, *, hooks, routing='ensemble', verify_che
             components['pose_motion_tree'] = [np.stack([c[f'tree_task{j}'] for c in cached]) for j in range(2)]
         if member['class_prior'] is not None:
             components['class_prior'] = [np.tile(np.asarray(member['class_prior'][j]), (len(needed), 1)) for j in range(2)]
+        for name in member.get('extra_trees', {}):
+            components[name] = [np.stack([c[f'extra_{name}_task{j}'] for c in cached]) for j in range(2)]
         components['ensemble'] = combine_member(member, components, len(needed))
+        if member.get('class_offsets') is not None:   # inner-fitted offsets, persisted; applied identically here
+            components['ensemble'] = [apply_class_offsets(p, member['class_offsets'][j]) for j, p in enumerate(components['ensemble'])]
         for name, arrays in components.items(): validate_probability_arrays(arrays, len(needed), classes)
         member_outputs[member['member_id']] = dict(indices=needed, components=components)
     final = [np.zeros((len(names), len(c))) for c in classes]
@@ -459,3 +473,61 @@ def write_submission(result, template, output_path):
         raise InferenceArtifactError('Submission does not cover every template clip')
     submission.to_csv(output_path, index=False)
     return submission
+
+
+# ------------------------------------------------------------------------------------------- label audit
+AUGMENTATION_POLICY = dict(brightness_gain=(0.85, 1.15), brightness_shift=(-0.04, 0.04), consistent_across_frames=True,
+                           horizontal_flip=False, temporal_reversal=False,
+                           note='No flips or reversals: they would change direction labels unless every input and label '
+                                'were mirrored consistently.')
+
+
+def label_mapping_audit(output_path=None):
+    """Synthetic one-hot checks for all six task/class combinations through: string->index encoding, neural-head
+    argmax decoding, CatBoost classes_ alignment (including a tree that never saw a class), ensemble combination,
+    class offsets and submission decoding. Records the augmentation policy. Raises on any mismatch."""
+    checks = []
+    for j, (target, classes) in enumerate(zip(TARGETS, CLASSES)):
+        for k, label in enumerate(classes):
+            frame = pd.DataFrame({t: [CLASSES[i][0]] for i, t in enumerate(TARGETS)}); frame[target] = [label]
+            encoded = int(encode_labels(frame)[0, j])
+            onehot = np.eye(len(classes))[[k]]
+            decoded = str(decode_labels(onehot, j)[0])
+            class FakeTree:  # CatBoost reports classes_ it saw, in its own order
+                classes_ = np.array([c for c in [2, 0, 1] if c != (k + 1) % 3])
+                def predict_proba(self, x):
+                    out = np.zeros((len(x), len(self.classes_)))
+                    if k in self.classes_: out[:, list(self.classes_).index(k)] = 1
+                    else: out[:] = 1 / len(self.classes_)
+                    return out
+            trees = [FakeTree() if i == j else FakeTree() for i in range(len(TARGETS))]
+            tree_p = tree_probabilities(trees, np.zeros((1, 1)), CLASSES)[j]
+            member = dict(member_id='audit', ensemble=dict(components=['video_ensemble'], weights=[[1.0]] * len(TARGETS)))
+            combined = combine_member(member, {'video_ensemble': [onehot if i == j else np.eye(len(CLASSES[i]))[[0]]
+                                                                  for i in range(len(TARGETS))]}, 1)[j]
+            shifted = apply_class_offsets(onehot * .98 + .01, [0.0] * len(classes))
+            ok = (encoded == k and decoded == label and int(combined.argmax(1)[0]) == k
+                  and int(np.argmax(shifted)) == k and (k not in FakeTree.classes_ or int(tree_p.argmax(1)[0]) == k))
+            checks.append(dict(target=target, class_label=label, expected_index=k, encoded_index=encoded,
+                               decoded_label=decoded, tree_aligned_index=int(tree_p.argmax(1)[0]),
+                               tree_saw_class=bool(k in FakeTree.classes_), ensemble_index=int(combined.argmax(1)[0]), ok=bool(ok)))
+    report = dict(passed=all(c['ok'] for c in checks), checks=checks, class_order=dict(zip(TARGETS, CLASSES)),
+                  augmentation_policy=AUGMENTATION_POLICY,
+                  direction_convention=('Not verifiable from code. Check the competition documentation for whether left/'
+                                        'right are camera-relative; see label_convention_samples/ (training-only clips). '
+                                        'Labels are never swapped based on outer confusion matrices.'))
+    if output_path is not None:
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(output_path).write_text(json.dumps(report, indent=2, default=str))
+    if not report['passed']:
+        raise AssertionError('Label mapping audit failed: ' + json.dumps([c for c in checks if not c['ok']], default=str))
+    return report
+
+
+def apply_class_offsets(probabilities, offsets):
+    """Additive log-probability offsets (fitted on inner predictions only), renormalized; zeros are a no-op."""
+    p = np.clip(np.asarray(probabilities, dtype=float), 1e-12, 1)
+    logits = np.log(p) + np.asarray(offsets, dtype=float)
+    logits -= logits.max(axis=-1, keepdims=True)
+    out = np.exp(logits)
+    return out / out.sum(axis=-1, keepdims=True)

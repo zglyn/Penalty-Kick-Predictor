@@ -283,9 +283,11 @@ def run_development_sweep(backbones, predict_private=False):
 
 
 # ------------------------------ Execution routing (RUN_MODE from Settings) ------------------------------
-inference_result=None; diagnostic_result=None; development_result=None
+inference_result=None; diagnostic_result=None; development_result=None; refine_result=None
 if RUN_MODE == 'reports':
     pass                                           # reports mode stops before this cell; definitions only
+elif RUN_MODE == 'refine':
+    refine_result=run_refinement()                 # reuses saved models: no video training
 elif RUN_MODE == 'inference':
     inference_result=run_inference_mode()          # loads saved artifacts only; no training or selection
 elif QUICK_SMOKE:

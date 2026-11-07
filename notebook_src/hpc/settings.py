@@ -9,7 +9,7 @@ SHARED_CODE_FINGERPRINT = '{{SHARED_CODE_FINGERPRINT}}'   # filled by tools/buil
 NETID = os.environ.get('USER', 'NETID')
 
 # ---- Execution (does not change experiment identity) ---------------------------------------------
-RUN_MODE = 'train'            # 'smoke' (QUICK_SMOKE check) | 'train' | 'resume' | 'inference' | 'reports'
+RUN_MODE = 'train'            # 'smoke' | 'train' | 'resume' | 'inference' | 'reports' | 'refine' (improve a finished run, no video retraining)
 TRAINED_RUN_DIR = None        # run folder or verified bundle (inference/reports). Relative = under OUTPUT_ROOT
 INFERENCE_INPUT = 'private'   # 'private' | 'public_oof' | CSV with clip,path,preferred_foot,gender (no ZIP needed)
 FOLD_SELECTION = None         # None = all folds then aggregate; [k] = only fold k (one job per fold); [] = aggregate
@@ -40,6 +40,12 @@ BACKBONE_REVISION = None
 TRAINING_POLICY = 'finetune'      # 'finetune' | 'frozen_probe' (freezes encoder WEIGHTS; unrelated to releases)
 PREDICT_PRIVATE = True        # nested_cv only: predict the 900 private clips and write submission.csv
 RUN_ABLATIONS = False
+# RUN_MODE='refine' (TRAINED_RUN_DIR = finished nested_cv run): reuses all saved models; writes a new run folder.
+REFINE_TREE_CLASS_WEIGHTS = True   # add a pose/motion CatBoost refit with capped inverse-sqrt class weights (CPU)
+REFINE_WEIGHT_CAP = 3.0            # cap on per-sample class weight (mean weight = 1)
+REFINE_CLASS_OFFSETS = True        # inner-fitted center-class log-probability offset, adopted only if inner accuracy rises
+REFINE_CENTER_OFFSETS = [0.0, 0.25, 0.5, 0.75, 1.0]
+REFINE_AUDITS = True               # label-mapping, temporal-input, crop-geometry audits and training-only label samples
 DEVELOPMENT_BACKBONES = None     # list = development sweep over backbones (see the Colab notebook); None = BACKBONE only
 DEV_SEEDS = [42]
 DEV_EPOCHS = 3

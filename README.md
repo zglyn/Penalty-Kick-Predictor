@@ -26,6 +26,7 @@ Both notebooks share the same model, preprocessing and evaluation code. They dif
 ## Documentation
 
 - [`docs/WORKFLOW.md`](docs/WORKFLOW.md): the shared workflow, platform setup, and launch/resume/inference/report recipes.
+- [`docs/REFINEMENT.md`](docs/REFINEMENT.md): `RUN_MODE='refine'`, which improves a finished run without video retraining, plus the Priority-0 audits.
 - [`hpc/ENVIRONMENT.md`](hpc/ENVIRONMENT.md): HPC facts taken from the codelab, unresolved cluster values, and Singularity/conda setup.
 - [`docs/VALIDATION.md`](docs/VALIDATION.md): the validation ladder, split into passed, failed and not-run checks.
 - [`docs/RELEASES_AND_MIGRATION.md`](docs/RELEASES_AND_MIGRATION.md): baseline releases, bundles and artifact compatibility.

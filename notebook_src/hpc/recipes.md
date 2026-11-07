@@ -14,6 +14,8 @@ One-time setup (environment overlay, data upload, log folder): `hpc/ENVIRONMENT.
 
 **6. Reports / transfer to Colab:** `RUN_MODE='reports'` (no GPU needed; CPU partition or OOD session). `EXPORT_BUNDLE_TO=OUTPUT_ROOT/'bundles'` writes a checksummed, relocatable bundle; download it with the OOD file browser and load it in Colab with `TRAINED_RUN_DIR`.
 
+**7. Refine a finished run (no video retraining):** `RUN_MODE='refine'`, `TRAINED_RUN_DIR=runs/hpc/<experiment>` (`sbatch penalty_kick.sbatch jobs/refine.json`). Writes `<run>__refine_<id>/` with `submission.csv`, `refine_comparison.csv` and audits; the parent is not modified. See `docs/REFINEMENT.md`.
+
 **Monitoring:** `squeue -u $USER`, `scancel <jobid>`, logs in `/scratch/$USER/penalty_kick/logs/`, checkpoints in `OUTPUT_ROOT/runs/hpc/<experiment>/stages/*/video_seed*_latest.pt`, attempts in `.../attempts/`.
 
 **Validation status:** see `docs/VALIDATION.md`. No cluster job, real checkpoint or GPU run has been executed by the author of these notebooks.

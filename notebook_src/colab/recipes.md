@@ -12,6 +12,8 @@ Every recipe: run the install cell (skip for reports), **Runtime > Restart sessi
 
 **5. Reports only:** `RUN_MODE='reports'`, `TRAINED_RUN_DIR=<run or bundle>`. Skip the install cell. Only pandas/numpy are used; Drive is mounted only if the path is on Drive; the notebook stops after the summary.
 
+**6. Refine a finished run (no video retraining):** `RUN_MODE='refine'`, `TRAINED_RUN_DIR=<OUTPUT_ROOT>/runs/colab/final_videomae_v1__learned_<id>`. Reuses all saved weights; adds a class-weighted pose/motion tree, reselects each task's ensemble on inner predictions, and fits a center-class offset. Writes `<run>__refine_<id>/submission.csv`, `refine_comparison.csv` and the Priority-0 audits; the original run is untouched. A GPU speeds up the inference passes. See `docs/REFINEMENT.md`.
+
 **Keep on Drive:** `OUTPUT_ROOT/runs/colab/...` (checkpoints, reports), `OUTPUT_ROOT/splits/`, `OUTPUT_ROOT/diagnostic_splits/`, detector caches. `/content` (SCRATCH_ROOT) is disposable. Never point Colab at an HPC run folder that is still training; use an exported bundle.
 
 **Validation status:** see `docs/VALIDATION.md`. CPU synthetic tests pass; real-checkpoint/GPU smoke, pilot and full evaluation have not been run by the author of these notebooks.

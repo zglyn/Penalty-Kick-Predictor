@@ -49,6 +49,7 @@ The spec says to complete A–D before freezing a long-run baseline. Only A, and
 | Development preset is labeled and never exported as full evaluation | `test_development_preset_is_labeled_and_never_exported_as_full_evaluation` |
 | Batch runner settings and release integrity | `test_batch_runner_rejects_unknown_settings_and_modified_releases` |
 | Settings fail before expensive work | `test_incompatible_settings_fail_before_anything_expensive[colab/hpc]` |
+| Refinement reuses weights, leaves the parent untouched, selects on inner data only, and replays through inference | `test_refinement.py` (9: parent bytes identical, no crops or role fits, original inner choices reproduced, fresh inference matches saved predictions ≤1e-6, label-audit catches a swapped decoder, class-health arithmetic) |
 | Backbone adapters | VideoMAE and V-JEPA 2: real Transformers classes with tiny configs. V-JEPA 2.1: a **stand-in** of the official interface (running Meta's repository code was not permitted in the authoring sandbox). |
 
 ## Failed

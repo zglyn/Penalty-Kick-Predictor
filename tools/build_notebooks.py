@@ -21,7 +21,8 @@ CORE = ['shared/constants_and_summary_helpers.py', 'shared/reports_mode.py', 'sh
         'shared/md_extraction.md', 'shared/extraction.py', 'shared/md_roles.md', 'shared/roles_and_crops.py',
         'shared/md_model.md', 'shared/model_and_training.py', 'shared/md_timing.md', 'shared/timing_benchmark.py',
         'shared/md_nested.md', 'shared/nested_orchestration.py',
-        'shared/md_inference_bindings.md', 'shared/inference_glue.py', 'shared/smoke_holdout_dispatch.py',
+        'shared/md_inference_bindings.md', 'shared/inference_glue.py', 'shared/md_refinement.md', 'shared/refinement.py',
+        'shared/smoke_holdout_dispatch.py',
         'shared/md_validation_report.md', 'shared/validation_report.py', 'shared/md_heatmaps.md', 'shared/heatmaps.py',
         'shared/md_submission.md', 'shared/submission.py', 'shared/md_summary.md', 'shared/pipeline_summary_run.py',
         'shared/bundle_export.py', 'shared/md_references.md', 'shared/guide_outputs.md']

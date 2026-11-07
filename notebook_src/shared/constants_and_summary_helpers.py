@@ -105,11 +105,14 @@ def load_run_reports(run_dir):
 
 
 def _load_loss_histories(run):
-    frames = []
-    for path in sorted((run / 'stages').glob('*/loss_history_seed*.csv')):
+    frames = []; source = run
+    refine = _read_json(run / 'refinement_manifest.json') if (run / 'refinement_manifest.json').exists() else None
+    if refine and refine.get('parent') and not (run / 'stages').exists():
+        source = run.parent / refine['parent']        # refinement reuses the parent's video stages
+    for path in sorted((source / 'stages').glob('*/loss_history_seed*.csv')):
         frame = pd.read_csv(path)
         seed = path.stem.replace('loss_history_seed', '')
-        frames.append(frame.assign(stage=path.parent.name, seed=seed, file=str(path.relative_to(run))))
+        frames.append(frame.assign(stage=path.parent.name, seed=seed, file=str(path.relative_to(run) if source == run else Path('..') / path.relative_to(run.parent))))
     return pd.concat(frames, ignore_index=True) if frames else None
 
 
@@ -589,11 +592,26 @@ def build_pipeline_summary(run_dir, rules=None):
         info = bundle['inference_run'] or {}
         identity.update(run_id=Path(run_dir).name, backbone=info.get('backbone'), inference_input=info.get('input'),
                         fitted_run=info.get('trained_run_dir'))
+    health = class_health_table(bundle.get('component_clip_errors'), bundle.get('component_confusions'))
+    alerts = class_health_alerts(health)
+    headlines = measured_headlines(bundle, health) if bundle['status'] in ('complete', 'incomplete') else []
     summary = dict(schema_version=SUMMARY_SCHEMA_VERSION, identity=identity, status=bundle['status'],
+                   class_health_alerts=alerts, measured_headlines=headlines,
+                   artifact_inventory=artifact_inventory(run_dir) if bundle.get('experiment_manifest') else [],
                    overview=analysis['overview'], priorities=[{k: f.get(k) for k in PRIORITY_COLUMNS} for f in ranked],
                    priority_details=ranked, not_evaluated=analysis['not_evaluated'], coverage=bundle['coverage'],
                    warnings=bundle['warnings'], rules=analysis['rules'])
+    summary['_tables'] = dict(class_health=health,
+        role_failure_crosstab=role_failure_crosstab(bundle.get('role_click_audit'), _read_frames(run_dir), bundle.get('tracking_quality')),
+        training_history_report=training_history_report(bundle.get('loss_histories')))
     return summary
+
+
+def _read_frames(run_dir):
+    path = Path(run_dir) / 'tracking_frames.csv'
+    if not path.exists(): return None
+    try: return pd.read_csv(path, usecols=lambda c: c in ('clip', 'role', 'selected'))
+    except (ValueError, pd.errors.EmptyDataError): return None
 
 
 def _fmt(value, digits=2):
@@ -611,6 +629,17 @@ def render_summary_markdown(summary):
     if summary['status'] == 'inference_only':
         lines += ['This directory holds label-free predictions. No accuracy, loss or weakness ranking can be computed '
                   'without labels; summarize the fitted training run instead.', '']
+    if summary.get('measured_headlines') or summary.get('class_health_alerts'):
+        lines += ['## Measured headlines', '']
+        lines += [f'- {h}' for h in summary.get('measured_headlines', [])]
+        other = [a for a in summary.get('class_health_alerts', []) if a['component'] != 'ensemble']
+        if other:
+            lines += [f'- Other components with a supported class never predicted or never correct: '
+                      + '; '.join(a['text'] for a in other)]
+        lines += ['', '_Measurements, not causes. Per-class precision/recall by component and fold: `class_health.csv`._', '']
+    missing = [a for a in summary.get('artifact_inventory', []) if not a['present']]
+    if missing:
+        lines += ['Missing artifacts (not synthesized): ' + ', '.join(a['artifact'] for a in missing), '']
     ov = summary['overview']
     if ov.get('components'):
         lines += ['## Overview (pooled outer-fold, exploratory)', '',
@@ -645,11 +674,174 @@ def render_summary_markdown(summary):
     return '\n'.join(lines)
 
 
+# ----------------------------------------------------------------------------- Priority 0: class health & audits
+def encode_labels(frame):
+    """Task strings -> class indices with the fixed CLASSES order; unknown labels fail loudly (no silent NaN)."""
+    out = []
+    for target, classes in zip(TARGETS, CLASSES):
+        mapping = {c: i for i, c in enumerate(classes)}
+        values = frame[target].map(mapping)
+        if values.isna().any():
+            raise ValueError(f'Unknown {target} labels: {sorted(set(frame[target][values.isna()]))}')
+        out.append(values.to_numpy().astype(int))
+    return np.column_stack(out) if out else np.zeros((0, len(TARGETS)), dtype=int)
+
+
+def decode_labels(probabilities, task):
+    """Probability matrix (n x classes, CLASSES order) -> class strings."""
+    p = np.asarray(probabilities)
+    if p.ndim != 2 or p.shape[1] != len(CLASSES[task]):
+        raise ValueError(f'Expected n x {len(CLASSES[task])} probabilities for {TARGETS[task]}, got {p.shape}')
+    return np.asarray(CLASSES[task])[p.argmax(1)]
+
+
+def class_health_table(errors=None, confusions=None):
+    """Per component/task/fold(+pooled)/class: support, predicted support, correct, precision, recall, and a
+    '__macro__' row with macro recall. Zero predicted support -> precision NaN with zero_predictions=True;
+    zero support -> recall NaN. Never divides by zero silently."""
+    rows = []
+
+    def add(component, target, fold, true, pred):
+        recalls = []
+        for label in CLASSES[TARGETS.index(target)]:
+            support = int((true == label).sum()); predicted = int((pred == label).sum())
+            correct = int(((true == label) & (pred == label)).sum())
+            precision = correct / predicted if predicted else float('nan')
+            recall = correct / support if support else float('nan')
+            if support: recalls.append(recall)
+            rows.append(dict(component=component, target=target, fold=fold, class_label=label, support=support,
+                             predicted_support=predicted, correct=correct, precision=precision, recall=recall,
+                             zero_predictions=predicted == 0, zero_recall=bool(support and correct == 0)))
+        rows.append(dict(component=component, target=target, fold=fold, class_label='__macro__',
+                         support=int(len(true)), predicted_support=int(len(pred)), correct=int((true == pred).sum()),
+                         precision=float('nan'), recall=float(np.mean(recalls)) if recalls else float('nan'),
+                         zero_predictions=False, zero_recall=False))
+    if errors is not None and len(errors):
+        for (component, fold), part in errors.groupby(['component', 'fold']):
+            for target in TARGETS:
+                add(component, target, str(fold), part[target + '_true'].to_numpy(), part[target + '_predicted'].to_numpy())
+        for component, part in errors.groupby('component'):
+            for target in TARGETS:
+                add(component, target, 'pooled', part[target + '_true'].to_numpy(), part[target + '_predicted'].to_numpy())
+    elif confusions is not None and len(confusions):
+        for (component, target), part in confusions.groupby(['component', 'target']):
+            true = np.repeat(part.true_label.to_numpy(), part.clips.to_numpy())
+            pred = np.repeat(part.predicted_label.to_numpy(), part.clips.to_numpy())
+            add(component, target, 'pooled', true, pred)
+    return pd.DataFrame(rows)
+
+
+def class_health_alerts(table):
+    """Supported classes with zero recall or zero predictions (pooled). Reported regardless of the top-5 table."""
+    if table is None or table.empty: return []
+    pooled = table[(table.fold == 'pooled') & (table.class_label != '__macro__') & (table.support > 0)]
+    alerts = []
+    for r in pooled.itertuples():
+        if r.zero_recall or r.zero_predictions:
+            alerts.append(dict(component=r.component, target=r.target, class_label=r.class_label, support=int(r.support),
+                               predicted_support=int(r.predicted_support), correct=int(r.correct),
+                               text=f'{r.component}: {r.target} "{r.class_label}" recall {int(r.correct)}/{int(r.support)}, '
+                                    f'predicted {int(r.predicted_support)} time(s)'
+                                    + (' (never predicted)' if r.zero_predictions else '')))
+    return alerts
+
+
+def role_failure_crosstab(audits, frames=None, quality=None):
+    """Per role/fold outcome counts from the post-prediction click audit. Separates: no click-containing detection,
+    candidate present but role missing, other box selected, selected at the audit frame but with gaps elsewhere,
+    timestamp mismatch, and clips without annotation. Localization proxies, not identity labels."""
+    if audits is None or not len(audits) or 'failure_category' not in audits: return pd.DataFrame()
+    a = audits.copy()
+    if frames is not None and len(frames) and {'clip', 'role', 'selected'} <= set(frames):
+        coverage = frames.groupby(['clip', 'role']).selected.mean()
+        ok = a.failure_category == 'click_inside_selected_box_proxy'
+        gaps = [coverage.get((c, r), 1.0) < 1.0 for c, r in zip(a['clip'], a['role'])]
+        a.loc[ok & np.asarray(gaps, dtype=bool), 'failure_category'] = 'selected_at_audit_but_gaps_elsewhere'
+    table = pd.crosstab([a['role'], a['fold']], a['failure_category']).reset_index()
+    if quality is not None and len(quality) and 'clip' in quality:
+        for role in sorted(set(a['role'])):
+            annotated = set(a.loc[a.role == role, 'clip'])
+            for fold, part in quality.groupby('fold'):
+                mask = (table.role == role) & (table.fold == fold)
+                table.loc[mask, 'no_annotation'] = int((~part['clip'].isin(annotated)).sum())
+    if 'exact_click_unmatched_detection_proxy' in a:
+        exact = a.groupby(['role', 'fold']).exact_click_unmatched_detection_proxy.apply(
+            lambda s: float(pd.to_numeric(s, errors='coerce').mean())).rename('exact_frame_no_detection_rate')
+        table = table.merge(exact.reset_index(), on=['role', 'fold'], how='left')
+    table['annotated_clips'] = table[[c for c in table if c not in ('role', 'fold', 'no_annotation',
+                                      'exact_frame_no_detection_rate')]].sum(axis=1)
+    return table
+
+
+def training_history_report(histories):
+    """One row per stage/seed from saved loss histories: best epoch, train/validation trajectories and flags that
+    help separate weak optimization (train loss not falling) from overfitting (validation rising after best)."""
+    if histories is None or not len(histories): return pd.DataFrame()
+    rows = []
+    for (stage, seed), h in histories.groupby(['stage', 'seed']):
+        h = h.sort_values('epoch'); row = dict(stage=stage, seed=seed, epochs=int(len(h)))
+        train_col = 'train_loss' if 'train_loss' in h else 'optimization_loss'
+        row.update(train_first=float(h[train_col].iloc[0]), train_last=float(h[train_col].iloc[-1]))
+        row['train_not_decreasing'] = bool(row['train_last'] >= row['train_first'] - 1e-4) if len(h) > 1 else None
+        if 'validation_loss' in h and h.validation_loss.notna().any():
+            best = h.loc[h.validation_loss.idxmin()]
+            row.update(best_epoch=int(best.epoch), validation_first=float(h.validation_loss.iloc[0]),
+                       validation_best=float(best.validation_loss), validation_last=float(h.validation_loss.iloc[-1]))
+            row['best_at_first_epoch'] = row['best_epoch'] == int(h.epoch.iloc[0])
+            row['validation_rises_after_best'] = bool(row['validation_last'] > row['validation_best'] + 1e-4)
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def measured_headlines(bundle, health):
+    """Measurements to lead the summary with: class failures, lost score by target, role availability, and how much
+    the video ensemble beats the training-only prior. Measurements only; no causal claims."""
+    lines = []
+    for alert in class_health_alerts(health):
+        if alert['component'] == 'ensemble': lines.append('Class failure (measured): ' + alert['text'])
+    errors = bundle.get('component_clip_errors')
+    if errors is not None and 'ensemble' in set(errors.component):
+        c = target_contributions(errors)
+        lines.append('Lost weighted score: ' + '; '.join(f'{t} {100 * v["weighted_error_contribution"]:.2f} pp '
+                                                          f'({v["wrong"]} wrong)' for t, v in c.items()))
+        part = errors[errors.component == 'ensemble']
+        for t in TARGETS:
+            counts = part[t + '_predicted'].value_counts()
+            lines.append(f'{t} predicted counts: ' + ', '.join(f'{k}={int(counts.get(k, 0))}' for k in CLASSES[TARGETS.index(t)]))
+    q = bundle.get('tracking_quality')
+    if q is not None and len(q) and 'kicker_tracked_fraction' in q:
+        lines.append(f'Role availability (mean frame coverage): kicker {100 * q.kicker_tracked_fraction.mean():.1f}%, '
+                     f'keeper {100 * q.keeper_tracked_fraction.mean():.1f}%')
+    m = bundle.get('component_metrics')
+    if m is not None and len(m) and {'video_ensemble', 'class_prior'} <= set(m.component):
+        pooled = m[m.fold == 'pooled'].set_index('component')
+        gains = [f'{t} {100 * (pooled.loc["video_ensemble", t + "_accuracy"] - pooled.loc["class_prior", t + "_accuracy"]):+.2f} pp'
+                 for t in TARGETS]
+        lines.append('Video ensemble vs training-only prior (accuracy): ' + '; '.join(gains))
+    return lines
+
+
+def artifact_inventory(run_dir):
+    """Which per-clip / per-epoch artifacts exist; missing ones are listed, never synthesized."""
+    run = Path(run_dir)
+    checks = {'experiment/split manifest': run / 'experiment_manifest.json',
+              'per-clip component errors': run / 'component_reports' / 'component_clip_errors.csv',
+              'per-clip OOF probabilities': run / 'component_reports' / 'component_oof_probabilities.npz',
+              'per-clip role audits': run / 'role_click_audit.csv', 'frame-level tracking': run / 'tracking_frames.csv'}
+    out = [dict(artifact=k, path=str(v.relative_to(run)), present=v.exists()) for k, v in checks.items()]
+    inner = sorted(run.glob('stages/*inner*/loss_history_seed*.csv'))
+    out.append(dict(artifact='per-seed inner loss histories', path='stages/*inner*/loss_history_seed*.csv', present=bool(inner)))
+    return out
+
+
 def write_pipeline_summary(run_dir, rules=None, output_dir=None):
     """output_dir defaults to the run folder; reports on someone else's run/bundle should write elsewhere."""
     run = Path(run_dir); out = Path(output_dir) if output_dir is not None else run
     out.mkdir(parents=True, exist_ok=True)
     summary = build_pipeline_summary(run, rules)
+    tables = summary.pop('_tables', {})
+    for name, table in tables.items():
+        if table is not None and len(table): table.to_csv(out / f'{name}.csv', index=False)
     text = render_summary_markdown(summary)
     (out / 'pipeline_summary.md').write_text(text, encoding='utf-8')
     (out / 'pipeline_summary.json').write_text(json.dumps(summary, indent=2, default=str), encoding='utf-8')

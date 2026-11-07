@@ -72,6 +72,8 @@ Outputs go to `OUTPUT_ROOT/inference/<platform>/<run>/`, never into the trained 
 
 **Reports.** Set `RUN_MODE='reports'` and `TRAINED_RUN_DIR=<run or bundle>`. Only json/pandas/numpy are imported, and the notebook stops after writing `pipeline_summary.*` to `OUTPUT_ROOT/reports/...` (on Colab, local sources stay in `SCRATCH_ROOT`). On HPC: `sbatch penalty_kick.sbatch jobs/reports.json`, or run it interactively.
 
+**Refine without retraining.** Set `RUN_MODE='refine'` and `TRAINED_RUN_DIR=<finished nested_cv run>`. Saved video weights are reused (inference only); a class-weighted CatBoost is refit on the CPU; ensembles and a center-class offset are reselected on inner predictions. Outputs go to `<run>__refine_<id>/`. Details: `docs/REFINEMENT.md`.
+
 **Transfer HPC → Colab.**
 1. Set `EXPORT_BUNDLE_TO=OUTPUT_ROOT/'bundles'` in a reports or inference run, or after training.
 2. Download the bundle folder with the OOD file browser and upload it to Drive.

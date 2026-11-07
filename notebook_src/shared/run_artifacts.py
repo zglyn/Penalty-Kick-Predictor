@@ -139,6 +139,10 @@ def bundle_members(run_dir, include_reports=True):
                            if p.is_file() and not p.name.endswith('.pt') and (folder != 'ablations' or p.suffix in ('.json', '.csv')))
         members.update(str(p.relative_to(run)).replace('\\', '/') for p in run.glob('stages/*/loss_history_seed*.csv'))
     if not members: raise FileNotFoundError(f'{run} has neither an inference manifest nor report files')
+    outside = [m for m in members if m.startswith('..')]
+    if outside:
+        raise ValueError(f'{run.name} references artifacts of its parent run ({outside[0]}, ...): it is a refinement run. '
+                         'Export the parent run folder and this folder together (keeping them side by side) instead.')
     return sorted(m for m in members if '_latest.pt' not in m)
 
 

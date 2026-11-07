@@ -42,9 +42,7 @@ if NEEDS_DATASET:
         assert p.name not in video_paths, f'Duplicate filename: {p.name}'
         video_paths[p.name] = p
     assert set(pd.concat([train['clip'],test['clip']])) <= video_paths.keys()
-    Y = np.column_stack([train[t].map({c:i for i,c in enumerate(cs)}).to_numpy() for t,cs in zip(TARGETS,CLASSES)])
-    assert not pd.isna(Y).any()
-    Y=Y.astype(int)
+    Y = encode_labels(train)   # fixed CLASSES order; unknown strings fail loudly (audited by label_mapping_audit)
     display(train[TARGETS].apply(pd.Series.value_counts))
     print('Public sources:', train.source_id.nunique(), 'Private sources:', test.source_id.nunique())
 else:

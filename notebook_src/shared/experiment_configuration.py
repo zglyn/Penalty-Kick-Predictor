@@ -45,8 +45,9 @@ BACKBONE_SPEC = backbone_spec(BACKBONE, BACKBONE_REVISION)
 LEGACY_IDENTITY = backbone_identity(backbone_spec('videomae'), 'finetune')
 SAVED_INFERENCE_MANIFEST = None
 OUTPUT = Path(OUTPUT_ROOT)   # historical name used by split/cache helpers
-if RUN_MODE == 'inference':
-    # Inference reconstructs the SAVED model identity; current notebook defaults never redefine it.
+SAVED_SETTINGS_MODES = {'inference', 'refine'}   # these modes rebuild the SAVED run's settings, never notebook defaults
+if RUN_MODE in SAVED_SETTINGS_MODES:
+    # Inference/refinement reconstruct the SAVED model identity; current notebook defaults never redefine it.
     if not TRAINED_RUN_DIR.is_dir(): raise FileNotFoundError(f'TRAINED_RUN_DIR not found: {TRAINED_RUN_DIR}')
     if is_bundle(TRAINED_RUN_DIR):
         verify_bundle(TRAINED_RUN_DIR, VERIFY_CHECKSUMS); print('Bundle verified:', TRAINED_RUN_DIR)
@@ -76,7 +77,7 @@ if RUN_MODE == 'inference':
         print(f'NOTE: Settings say BACKBONE={BACKBONE!r}, but the saved run uses {BACKBONE_SPEC["name"]!r}. '
               'The saved run wins; inference never converts a run to another backbone.')
     print('Loaded saved preprocessing/model settings from', TRAINED_RUN_DIR)
-if EVALUATION_MODE == 'development' and RUN_MODE != 'inference':
+if EVALUATION_MODE == 'development' and RUN_MODE not in SAVED_SETTINGS_MODES:
     VIDEO_SEEDS = list(DEV_SEEDS); VIDEO_EPOCHS = int(DEV_EPOCHS)
 FULL_TRAIN_SETTINGS=dict(epochs=VIDEO_EPOCHS,seeds=list(VIDEO_SEEDS),accumulation=GRAD_ACCUM)
 if QUICK_SMOKE:
@@ -84,7 +85,7 @@ if QUICK_SMOKE:
     VIDEO_SEEDS = [42]
     ROLE_FOLDS = 2
     GRAD_ACCUM = 2
-if RUN_MODE == 'inference' and DEVICE != 'cuda':
+if RUN_MODE in SAVED_SETTINGS_MODES and DEVICE != 'cuda':
     print('WARNING: no GPU. Inference will work but uncached detection/video encoding will be slow.')
 
 
@@ -157,7 +158,7 @@ def configure_training_run(backbone, revision=None, policy=None, label=None, rec
     return RUN
 
 
-if RUN_MODE == 'inference':
+if RUN_MODE in SAVED_SETTINGS_MODES:
     VIDEO_ID = BACKBONE_SPEC['checkpoint']
     BACKBONE_IDENTITY = backbone_identity(BACKBONE_SPEC, TRAINING_POLICY)
     LEGACY_DEFAULT_BACKBONE = BACKBONE_IDENTITY == LEGACY_IDENTITY

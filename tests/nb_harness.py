@@ -129,7 +129,9 @@ def base_namespace(tmp, backbone='videomae', policy='finetune', run_mode='train'
     ns.update(PLATFORM=WRAPPER, SCRATCH_ROOT=tmp / 'scratch', OUTPUT_ROOT=tmp / 'outputs', EXPERIMENT_NAME='test',
               ENVIRONMENT_INFO=dict(platform=WRAPPER), EXECUTION_SETTINGS={}, EXPERIMENT_SETTINGS={},
               SHARED_CODE_FINGERPRINT='test', TRAINING_MODES={'smoke', 'train', 'resume'}, EXPORT_BUNDLE_TO=None,
-              DEV_SEEDS=[42], DEV_EPOCHS=2, DEV_TRAIN_SOURCE_FRACTION=.5, DEV_VALIDATION_SOURCE_FRACTION=.25)
+              DEV_SEEDS=[42], DEV_EPOCHS=2, DEV_TRAIN_SOURCE_FRACTION=.5, DEV_VALIDATION_SOURCE_FRACTION=.25,
+              REFINE_TREE_CLASS_WEIGHTS=True, REFINE_WEIGHT_CAP=3.0, REFINE_CLASS_OFFSETS=True,
+              REFINE_CENTER_OFFSETS=[0.0, 0.25, 0.5, 0.75, 1.0], REFINE_AUDITS=True)
     for name in ['platform_helpers', 'run_artifacts', 'constants_and_summary_helpers']:
         run_cell(name, ns)
     ns['ATTEMPT_ID'] = ns['make_attempt_id'](WRAPPER)
@@ -160,7 +162,7 @@ def base_namespace(tmp, backbone='videomae', policy='finetune', run_mode='train'
               EXPERIMENT_ID=hashlib.sha256(json.dumps(cfg, sort_keys=True).encode()).hexdigest()[:16],
               OUTPUT=ns['OUTPUT'])
     ns['STAGES'].mkdir(exist_ok=True); ns['RAW'].mkdir(exist_ok=True)
-    for name in ['extraction', 'roles_and_crops', 'model_and_training', 'nested_orchestration', 'inference_glue']:
+    for name in ['extraction', 'roles_and_crops', 'model_and_training', 'nested_orchestration', 'inference_glue', 'refinement']:
         run_cell(name, ns)
     install_label_free_stubs(ns)
     ns['RUN_MODE'] = run_mode

@@ -1,5 +1,10 @@
 # CELL: submission
-if RUN_MODE == 'inference':
+if RUN_MODE == 'refine':
+    if refine_result is not None and refine_result['submission'] is not None:
+        print('Refined submission:', refine_result['submission']); offer_download(refine_result['submission'])
+    else:
+        print('Refinement finished without a submission (PREDICT_PRIVATE=False).')
+elif RUN_MODE == 'inference':
     if inference_result is not None and (inference_result['output_dir']/'submission.csv').exists():
         print('Inference submission:', inference_result['output_dir']/'submission.csv')
         offer_download(inference_result['output_dir']/'submission.csv')

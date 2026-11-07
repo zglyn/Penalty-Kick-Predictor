@@ -1,0 +1,2 @@
+{"RUN_MODE": "refine", "TRAINED_RUN_DIR": "runs/hpc/baseline_videomae_v1__learned_REPLACE_WITH_ID",
+ "PREDICT_PRIVATE": true}

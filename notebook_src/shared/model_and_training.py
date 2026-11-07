@@ -43,16 +43,24 @@ def direction_loss(logits, labels):
 @torch.inference_mode()
 def evaluate_video_loss(model,scaler,indices,mapping):
     model.eval(); total=np.zeros(len(TARGETS)); count=0
+    predicted=[np.zeros(len(c),dtype=int) for c in CLASSES]; correct=[np.zeros(len(c),dtype=int) for c in CLASSES]
+    support=[np.zeros(len(c),dtype=int) for c in CLASSES]
     loader=torch.utils.data.DataLoader(ClipDataset(indices,mapping,scaler),batch_size=1,num_workers=0)
     for v,n,y in loader:
         with torch.autocast('cuda',dtype=torch.float16): logits=model(v.to(DEVICE),n.to(DEVICE))
         for j,p in enumerate(logits):
             total[j]+=torch.nn.functional.cross_entropy(p.float(),y[:,j].to(DEVICE),reduction='sum').item()
+            guess=p.float().argmax(1).cpu().numpy(); truth=y[:,j].numpy()
+            np.add.at(predicted[j],guess,1); np.add.at(support[j],truth,1); np.add.at(correct[j],truth[guess==truth],1)
         count+=len(y)
     if not count: raise ValueError('Cannot evaluate an empty split')
     losses=total/count
     if not np.isfinite(losses).all(): raise FloatingPointError('Non-finite evaluation loss')
-    return dict(loss=float(WEIGHTS@losses),**{t+'_loss':float(x) for t,x in zip(TARGETS,losses)})
+    # Per-class predicted counts and recall: separates "never predicts the center class" from overall loss.
+    classwise={f'{t}_predicted_{k}':int(predicted[j][k]) for j,t in enumerate(TARGETS) for k in range(len(CLASSES[j]))}
+    classwise.update({f'{t}_recall_{k}':(float(correct[j][k]/support[j][k]) if support[j][k] else float('nan'))
+                      for j,t in enumerate(TARGETS) for k in range(len(CLASSES[j]))})
+    return dict(loss=float(WEIGHTS@losses),**{t+'_loss':float(x) for t,x in zip(TARGETS,losses)},**classwise)
 
 def update_loss_plot(history,folder,seed,handle=None):
     # Update just this figure, preserving progress bars and earlier cell output.
@@ -168,7 +176,9 @@ def fit_video(indices,mapping,folder,seed,validation_indices=None,epochs_overrid
     training_started=time.perf_counter()
     for epoch in range(start_epoch,planned_epochs):
         model.train(); optimizer.zero_grad(); total=0.
+        seen=[np.zeros(len(c),dtype=int) for c in CLASSES]   # class counts actually seen this epoch
         for step,(v,n,y) in enumerate(tqdm(loader,desc=f'Video seed {seed} epoch {epoch+1}',leave=False)):
+            for j in range(len(TARGETS)): np.add.at(seen[j],y[:,j].numpy(),1)
             v,n,y=v.to(DEVICE),n.to(DEVICE),y.to(DEVICE)
             with torch.autocast('cuda',dtype=torch.float16):
                 logits=model(v,n)
@@ -189,7 +199,8 @@ def fit_video(indices,mapping,folder,seed,validation_indices=None,epochs_overrid
                 if amp.get_scale()>=scale_before: updates+=1
                 optimizer.zero_grad()
             if step+1>=batch_limit: break
-        record=dict(epoch=epoch+1,optimization_loss=total/batch_limit)
+        record=dict(epoch=epoch+1,optimization_loss=total/batch_limit,
+                    **{f'seen_{t}_{k}':int(seen[j][k]) for j,t in enumerate(TARGETS) for k in range(len(CLASSES[j]))})
         if validation_indices is not None:
             # Eval-mode, unaugmented training loss is comparable to validation loss.
             for label,ids in [('train',indices),('validation',validation_indices)]:
